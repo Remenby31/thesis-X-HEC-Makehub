@@ -21,6 +21,8 @@
 \usepackage[backend=biber, style=authoryear, citestyle=authoryear]{biblatex}
 \addbibresource{references.bib}  % Assurez-vous que 'references.bib' est le nom de votre fichier BibTeX.
 \usepackage[left=3cm,right=3cm,top=3cm,bottom=3cm]{geometry}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds, calc}
 
 \usepackage{listings}
 \lstset{basicstyle=\ttfamily\small,breaklines=true,columns=fullflexible}
@@ -426,7 +428,7 @@ We are three co-founders with complementary backgrounds, brought together by a s
     \textbf{\large Samir Fernando Florido – CPO (Chief Product Officer)}
     \vspace{0.3em}
 
-    \noindent Fernando holds a Master's degree (M2) from Institut Polytechnique de Paris with a major in Cyber-Physical Systems (GPA: 4.0/4.0), where he developed expertise in AI and robotics engineering.
+    \noindent Fernando holds a Master's degree (M2) from Institut Polytechnique de Paris with a major in Cyber-Physical Systems, where he developed expertise in AI and robotics engineering.
     He previously worked on creating verification tools for complex robotic systems at the Computer Science Laboratory of École Polytechnique (LIX).
     As CPO, Fernando brings strong scientific and technical expertise in optimization and system design, defining the product roadmap and ensuring technical excellence in our AI routing solutions.
 \end{minipage}
@@ -635,6 +637,8 @@ When routing requests across providers, Makehub must normalize these response st
 \noindent\textbf{What this does.}
 Setting \texttt{"stream": true} in the request makes the server emit a sequence of SSE frames. Each frame contains a \texttt{delta} (partial text or metadata). The stream ends with \texttt{[DONE]}. This yields responsive UIs without waiting for the full completion.
 
+Each frame is a separate event prefixed with \texttt{data:}. The first frame typically announces the assistant's role, then subsequent frames deliver partial text chunks (\texttt{"Hello"}, \texttt{", how are"}, \texttt{" you?"}). The client concatenates these deltas incrementally until receiving the \texttt{[DONE]} marker.
+
 \begin{listing}[H]
 \begin{minted}{text}
 data: {"id":"chatcmpl-...","choices":[{"delta":{"role":"assistant"}}]}
@@ -646,8 +650,21 @@ data: [DONE]
 \caption{Conceptual SSE frames (illustrative)}
 \end{listing}
 
-\noindent\textbf{Client responsibilities.}
-Append each \texttt{delta.content} to your UI buffer in order. Handle edge cases: empty deltas (role only), multiline chunks, and the terminal \texttt{[DONE]}. If a network error occurs mid-stream, degrade gracefully (e.g., retry without losing already-rendered text).
+\noindent\textbf{Implementation pattern.}
+The client appends each \texttt{delta.content} to a buffer and updates the UI incrementally. Handle edge cases: empty deltas (role-only frames), multiline chunks, and the terminal \texttt{[DONE]}. If a network error occurs mid-stream, degrade gracefully (e.g., retry without losing already-rendered text).
+
+\begin{listing}[H]
+\begin{minted}{python}
+buffer = ""
+for event in stream:
+    if event == "[DONE]":
+        break
+    if event has delta.content:
+        buffer += delta.content
+        display(buffer)
+\end{minted}
+\caption{SSE client pseudo-code}
+\end{listing}
 
 \subsubsection{Tool (function) calling with a weather example}
 
@@ -848,17 +865,28 @@ In contrast, open-source models such as Meta's LLaMA family, Mistral AI's models
     \item \textbf{Availability and rate limits}: smaller providers may experience capacity constraints during peak hours, while larger providers offer more stable uptime but at a premium.
 \end{itemize}
 
-\paragraph{The absence of price–performance correlation.}
+\paragraph{Empirical evidence: Same model, different providers.}
 
-A key empirical finding—one that directly motivated the Makehub project—is that \textbf{there is no consistent correlation between price and performance across providers}. To validate this hypothesis, we analyzed 170,555 real production requests processed through the Makehub platform between April and December 2024, covering GPT-4o, Claude 3.5 Sonnet, and Gemini 2.0 Flash across multiple providers.
+A key empirical finding—one that directly motivated the Makehub project—is that \textbf{for a given model, performance varies drastically across providers, with no consistent correlation to price}. We documented this phenomenon using both external market data and Makehub's production traffic.
 
-Figure~\ref{fig:cost_performance_comparison} presents a comparative analysis of the three most-used models in our production dataset. The data reveals substantial cost–performance disparities: Gemini 2.0 Flash offers a \textbf{37.5× cost advantage} over Claude 3.5 Sonnet while delivering \textbf{16× higher median throughput}. GPT-4o occupies a middle position, with balanced latency but higher cost than Gemini. Critically, these differences are not explained by performance trade-offs—Gemini is simultaneously cheaper \emph{and} faster than Claude for most workloads.
+\textbf{Open-source models: Llama 3.1 70B.} As illustrated earlier in Figure~\ref{fig:price_performance_llama}, the same model weights (Llama 3.1 70B) exhibit:
+\begin{itemize}
+    \item \textbf{6× price variance}: from \$0.50 to \$3.00 per million tokens across 15+ providers.
+    \item \textbf{10× throughput variance}: from ~40 tokens/s (Azure) to 400+ tokens/s (Cerebras, SambaNova).
+    \item \textbf{No price–performance correlation}: Deepinfra offers both low cost and low latency, while Azure charges premium prices for modest performance.
+\end{itemize}
+
+\textbf{Closed-source models: GPT-4o on Azure regions.} Even for proprietary models with limited hosting options, geographic routing creates performance disparities. Figure~\ref{fig:gpt4o_provider_comparison} shows GPT-4o latency across 7 Azure regions and OpenAI's native endpoint, measured from Makehub production traffic at 12:00 on a typical Monday:
+\begin{itemize}
+    \item \textbf{55\% latency variance}: from 520ms (azure-francecentral) to 850ms (openai, azure-germanywestcentral).
+    \item \textbf{Identical pricing}: all Azure regions charge the same per-token rate, yet performance differs by geography and instantaneous load.
+\end{itemize}
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.9\textwidth]{DataAnalysisCorrelation/figure_cost_performance.png}
-\caption{Cost vs. performance for the three most-used models (170,555 production requests).}
-\label{fig:cost_performance_comparison}
+\includegraphics[width=0.9\textwidth]{DataAnalysisCorrelation/visualisation/figures/provider_comparison_12h_openai_gpt-4o.png}
+\caption{GPT-4o latency across providers at 12:00 (production data, minimum 100 samples per provider).}
+\label{fig:gpt4o_provider_comparison}
 \end{figure}
 
 This lack of correlation is explained by several factors:
@@ -1258,7 +1286,7 @@ Consider a 5-turn conversation where each request includes:
     \item \textbf{Total input cost: \$0.040 (65\% savings)}
 \end{itemize}
 
-This demonstrates that caching is most impactful in \textbf{multi-turn, context-heavy conversations}—precisely the use case for code assistants.
+This demonstrates that caching is most impactful in \textbf{multi-turn, context-heavy conversations} precisely the use case for code assistants.
 
 \paragraph{Optimization strategies: which messages to cache.}
 
@@ -1415,7 +1443,7 @@ where $t_{\text{first token}}$ is the timestamp when the first SSE event contain
 
 For code assistants, latency is less critical than for conversational AI, but it remains relevant in specific scenarios:
 \begin{itemize}
-    \item \textbf{Multi-step agentic workflows}: When an assistant executes a plan involving multiple sequential LLM calls (e.g., "read file A, analyze it, then modify file B"), each call's latency accumulates. If each step has 2 seconds of latency and the plan involves 10 steps, the user waits 20 seconds before seeing any progress.
+    \item \textbf{Multi-step agentic workflows}: When an assistant executes a plan involving multiple sequential LLM calls (e.g., "read file A, analyze it, then modify file B"), each call's latency accumulates. If each step has 2 seconds of latency and the plan involves 10 steps, the user waits 20 seconds before seeing any progress. Tool-calling workflows (§3.1.4) exemplify this pattern: a simple weather query requires \emph{three} round-trips (initial request → tool call response → tool result submission → final answer), tripling the effective latency.
     \item \textbf{Short, rapid-fire requests}: For tasks like "explain this error message" or "format this JSON," the output is brief, so latency dominates the total response time. A 2-second latency for a 5-token output feels slower than a 0.5-second latency for the same output.
 \end{itemize}
 
@@ -1474,12 +1502,12 @@ However, in practice, high-performance providers tend to excel at \emph{both} me
 
 \paragraph{Empirical throughput variation across providers.}
 
-To illustrate the real-world performance heterogeneity that motivates Makehub's provider routing strategy, Figure~\ref{fig:throughput_by_provider} presents throughput distributions from 170,555 production requests, broken down by provider for each of the three most-used models: GPT-4o, Claude 3.5 Sonnet, and Gemini 2.0 Flash.
+To illustrate the real-world performance heterogeneity that motivates Makehub's provider routing strategy, Figure~\ref{fig:throughput_by_provider} presents throughput distributions from 170,555 production requests, broken down by provider for the two most-used models: GPT-4o (147,657 requests across 8 providers) and Gemini 2.0 Flash (22,154 requests across 2 providers).
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=\textwidth]{DataAnalysisCorrelation/figure_throughput_by_provider.png}
-\caption{Throughput distribution by provider for GPT-4o, Claude 3.5 Sonnet, and Gemini 2.0 Flash.}
+\caption{Throughput distribution by provider for GPT-4o and Gemini 2.0 Flash.}
 \label{fig:throughput_by_provider}
 \end{figure}
 
@@ -1499,11 +1527,9 @@ Several critical observations emerge from this empirical data:
     \item Both providers exhibit high variance (std $>$ 300 tokens/s), reflecting dynamic autoscaling behavior under variable load.
 \end{itemize}
 
-\paragraph{Claude 3.5 Sonnet (30 requests).} Anthropic's model has \textbf{insufficient production data} for statistically robust provider comparison (no provider exceeds 100 requests). Preliminary observations suggest that Bedrock (AWS-hosted) exhibits anomalously high throughput (6233 tokens/s median over 2 requests), likely due to measurement artifacts or non-representative workload. The native Anthropic endpoint shows \textbf{52.65 tokens/s median throughput} over 26 requests.
-
 \medskip
 
-\noindent\textbf{Implications for routing.} These real-world measurements validate the core hypothesis underlying Makehub's server optimization strategy: \emph{for a given model, throughput varies dramatically across providers}. Routing decisions must therefore account not only for model selection but also for \textbf{real-time provider performance}, as discussed in the implementation sections that follow (§3.2, §3.3).
+\noindent\textbf{Implications for routing.} These real-world measurements validate the core hypothesis underlying Makehub's server optimization strategy: \emph{for a given model, throughput varies dramatically across providers}. For GPT-4o, choosing Azure over OpenAI's native endpoint yields a 30\% throughput improvement; for Gemini, the choice between Google AI Studio and Vertex AI results in an 8\% difference. Routing decisions must therefore account not only for model selection but also for \textbf{real-time provider performance}, as discussed in the implementation sections that follow (§3.2, §3.3).
 
 \paragraph{Temporal variation in provider performance.}
 
@@ -1635,7 +1661,7 @@ Once generation is complete (reception of the \texttt{[DONE]} event), the final 
 Consider a simplified streaming response from a provider:
 
 \begin{listing}[H]
-\begin{minted}{json}
+\begin{minted}{text}
 t=0.000s: POST /chat/completions sent to provider
 t=1.234s: data: {"choices":[{"delta":{"role":"assistant"}}]}
 t=1.456s: data: {"choices":[{"delta":{"content":"The"}}]}
@@ -1674,23 +1700,23 @@ However, this method has one major limitation: it is \textbf{dependent on user t
 
 This is why this approach is \textbf{systematically complemented} by an active periodic pinging mechanism (\S\ref{sec:periodic_ping}), which guarantees a minimum freshness of metrics even in the absence of organic traffic.
 
-\paragraph{Empirical validation: the absence of price-latency correlation.}
+\paragraph{Empirical validation: the absence of price-performance correlation.}
 
-To validate the effectiveness of point-in-time measurement and justify the need for real-time performance monitoring, we analyzed the correlation between request cost and latency across our production dataset of 170,555 requests. Figure~\ref{fig:price_latency_correlation} presents a scatter plot of cost per request versus latency for the three most-used models.
+To validate the effectiveness of point-in-time measurement and justify the need for real-time performance monitoring, we analyze the correlation between pricing and performance for open-source models, where multiple providers host identical model weights at different price points. Figure~\ref{fig:price_latency_correlation} presents a scatter plot analysis for Llama 4 Maverick across 12 providers, based on OpenRouter's public benchmarks.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.85\textwidth]{DataAnalysisCorrelation/figure_price_latency.png}
-\caption{Price vs. Latency correlation (170,555 requests, r=0.046).}
+\includegraphics[width=\textwidth]{DataAnalysisCorrelation/figure_price_performance_llama4.png}
+\caption{Price vs. Performance correlation for Llama 4 Maverick across 12 providers.}
 \label{fig:price_latency_correlation}
 \end{figure}
 
-The analysis reveals a \textbf{negligible correlation coefficient of r=0.046}, confirming the hypothesis presented in §2.2.1: there is no consistent relationship between what providers charge and how fast they deliver responses. Key findings include:
+The analysis reveals \textbf{weak and contradictory correlations}, confirming the hypothesis presented in §2.2.1: there is no consistent relationship between what providers charge and how fast they deliver responses. Key findings include:
 
 \begin{itemize}
-    \item \textbf{Price does not predict performance}: Expensive providers do not systematically deliver lower latency. Some high-cost providers exhibit median latencies above 500ms, while cheaper alternatives achieve sub-400ms latencies.
-    \item \textbf{Same-model variance}: Even for identical models (e.g., GPT-4o), latency varies by up to 57\% across providers (see §5.2.5 for detailed analysis), demonstrating that infrastructure quality—not model choice—drives performance differences.
-    \item \textbf{Dynamic performance fluctuations}: The scatter plot's wide dispersion reflects time-varying performance due to load conditions, geographic routing, and infrastructure incidents. Static pricing cannot capture these real-time dynamics.
+    \item \textbf{Price vs. Latency shows modest positive correlation (r=0.625)}: Surprisingly, \emph{higher-priced} providers sometimes deliver \emph{slower} responses. For example, SambaNova (\$1.80/M output tokens, 890ms latency) is 3.6× more expensive than DeepInfra (\$0.60/M, 830ms latency) with similar performance.
+    \item \textbf{Price vs. Throughput shows zero correlation (r=-0.037)}: Throughput variance is massive (67--2644 tokens/s), driven entirely by infrastructure choices (Cerebras's specialized hardware achieves 2644 tokens/s at \$0.60/M, while Parasail delivers only 155 tokens/s at \$0.85/M).
+    \item \textbf{Best value providers defy pricing logic}: Groq offers the lowest latency (330ms) at mid-tier pricing (\$0.60/M), while Google Vertex charges premium prices (\$1.15/M) for mediocre performance (820ms latency). This demonstrates that infrastructure quality—not pricing strategy—drives performance differences.
 \end{itemize}
 
 This empirical evidence justifies Makehub's core value proposition: \textbf{dynamic, measurement-driven routing} is essential because price alone provides no reliable signal about latency or throughput. Without continuous monitoring via point-in-time measurement and periodic pinging (§3.2.2), developers are forced to choose providers blindly or rely on stale benchmarks that fail to reflect production conditions.
@@ -1856,60 +1882,74 @@ Figure~\ref{fig:makehub_architecture} illustrates the end-to-end request flow th
 
 \begin{figure}[H]
 \centering
-\begin{verbatim}
-┌─────────────────────────────────────────────────────────┐
-│          Client Applications                            │
-│   (Cursor, Cline, Continue, Custom Apps)               │
-└────────────────────┬────────────────────────────────────┘
-                     │ HTTP POST /v1/chat/completions
-                     │ (OpenAI-compatible format)
-                     ▼
-┌─────────────────────────────────────────────────────────┐
-│           Makehub API Gateway (Node.js)                 │
-├─────────────────────────────────────────────────────────┤
-│  1. Authentication & Authorization                      │
-│     • X-API-Key or Supabase JWT validation             │
-│  2. Wallet Verification                                 │
-│     • Check user balance ≥ MINIMAL_FUND                 │
-│  3. Request Normalization                               │
-│     • Parse and validate OpenAI standard format         │
-│  4. Family Routing (optional)                           │
-│     • Complexity evaluation if model_id = family        │
-│  5. Provider Selection (filterProviders)                │
-│     • Multi-criteria scoring algorithm                  │
-│  6. Adapter Layer                                       │
-│     • Protocol translation for target provider          │
-└────────────────────┬────────────────────────────────────┘
-                     │ HTTP POST (provider-specific format)
-                     ▼
-┌─────────────────────────────────────────────────────────┐
-│        Multiple LLM Providers (with fallback)           │
-│  • OpenAI        • Anthropic    • Together AI           │
-│  • Azure OpenAI  • AWS Bedrock  • Replicate             │
-│  • Google Vertex • DeepInfra    • Fireworks AI          │
-└────────────────────┬────────────────────────────────────┘
-                     │ HTTP 200 + Streaming SSE
-                     ▼
-┌─────────────────────────────────────────────────────────┐
-│           Response Processing Pipeline                  │
-├─────────────────────────────────────────────────────────┤
-│  7. Adapter Response Transformation                     │
-│     • Provider format → OpenAI standard                 │
-│  8. Metrics Collection (async)                          │
-│     • Latency, throughput → database                    │
-│  9. Billing & Wallet Debit                              │
-│     • Calculate cost, update wallet                     │
-│ 10. Streaming Proxy                                     │
-│     • Forward SSE events to client                      │
-└────────────────────┬────────────────────────────────────┘
-                     │ HTTP 200 + Streaming SSE
-                     │ (OpenAI-compatible format)
-                     ▼
-┌─────────────────────────────────────────────────────────┐
-│          Client Applications                            │
-│   (Receive unified streaming response)                  │
-└─────────────────────────────────────────────────────────┘
-\end{verbatim}
+\tikzstyle{client} = [rectangle, rounded corners, minimum width=8cm, minimum height=1cm, text centered, draw=black, fill=blue!20, font=\small\bfseries]
+\tikzstyle{gateway} = [rectangle, minimum width=8cm, minimum height=3.5cm, text centered, draw=black, fill=green!15, font=\small]
+\tikzstyle{providers} = [rectangle, rounded corners, minimum width=8cm, minimum height=1.2cm, text centered, draw=black, fill=orange!20, font=\small\bfseries]
+\tikzstyle{response} = [rectangle, minimum width=8cm, minimum height=2.5cm, text centered, draw=black, fill=purple!15, font=\small]
+\tikzstyle{arrow} = [thick,->,>=Stealth]
+\tikzstyle{label} = [font=\scriptsize, text width=6cm, align=center]
+
+\begin{tikzpicture}[node distance=1.5cm]
+
+% Client top
+\node (client1) [client] {Client Applications\\{\scriptsize (Cursor, Cline, Continue, Custom Apps)}};
+
+% Arrow down
+\draw [arrow] (client1) -- node[label, right] {HTTP POST /v1/chat/completions\\(OpenAI-compatible)} (0,-2);
+
+% Gateway (main processing)
+\node (gateway) [gateway, below=of client1, yshift=-0.5cm] {
+\begin{minipage}{7.5cm}
+\centering
+\textbf{Makehub API Gateway (Node.js)}\\[0.2cm]
+\begin{tabular}{@{}l@{}}
+\scriptsize 1. Authentication \& Authorization\\
+\scriptsize 2. Wallet Verification\\
+\scriptsize 3. Request Normalization\\
+\scriptsize 4. Family Routing (optional)\\
+\scriptsize 5. Provider Selection (filterProviders)\\
+\scriptsize 6. Adapter Layer
+\end{tabular}
+\end{minipage}
+};
+
+% Arrow down
+\draw [arrow] (gateway) -- node[label, right] {HTTP POST\\(provider-specific format)} (0,-8.5);
+
+% Providers
+\node (providers) [providers, below=of gateway, yshift=-0.5cm] {
+\begin{minipage}{7.5cm}
+\centering
+\textbf{Multiple LLM Providers}\\
+{\scriptsize OpenAI • Anthropic • Azure • AWS Bedrock}\\
+{\scriptsize Google Vertex • DeepInfra • Fireworks AI}
+\end{minipage}
+};
+
+% Arrow down
+\draw [arrow] (providers) -- node[label, right] {HTTP 200 + Streaming SSE} (0,-11.5);
+
+% Response processing
+\node (response) [response, below=of providers, yshift=-0.5cm] {
+\begin{minipage}{7.5cm}
+\centering
+\textbf{Response Processing Pipeline}\\[0.2cm]
+\begin{tabular}{@{}l@{}}
+\scriptsize 7. Adapter Response Transformation\\
+\scriptsize 8. Metrics Collection (async)\\
+\scriptsize 9. Billing \& Wallet Debit\\
+\scriptsize 10. Streaming Proxy
+\end{tabular}
+\end{minipage}
+};
+
+% Arrow down
+\draw [arrow] (response) -- node[label, right] {HTTP 200 + Streaming SSE\\(OpenAI-compatible)} (0,-15);
+
+% Client bottom
+\node (client2) [client, below=of response, yshift=-0.5cm] {Client Applications\\{\scriptsize (Receive unified streaming response)}};
+
+\end{tikzpicture}
 \caption{Makehub's API Gateway architecture (10-stage request processing pipeline).}
 \label{fig:makehub_architecture}
 \end{figure}
@@ -2113,7 +2153,7 @@ If authentication fails, the request is rejected immediately with \texttt{401 Un
 
 \paragraph{Stage 2: Wallet verification.}
 
-The user's \texttt{wallet\_balance} is fetched from the database (with 60-second caching to reduce DB load). If \texttt{balance < MINIMAL\_FUND} (e.g., \$0.01), the request is rejected with \texttt{402 Payment Required}.
+The user's \texttt{wallet\_balance} is fetched from the database (with 60-second caching to reduce DB load). If \texttt{balance < MINIMAL\_FUND} (e.g., \$0.01), the request is rejected with \texttt{402 Payment Required}. (And yes if you are wondering, you can get a negative balance if you make a request that cost more than MINIMAL\_FUND (oups).)
 
 \paragraph{Stage 3: Request normalization.}
 
@@ -2696,44 +2736,19 @@ The fallback mechanism iterates through the ranked list of providers (produced b
 For non-streaming requests (\texttt{stream: false}), the retry logic is straightforward:
 
 \begin{listing}[H]
-\begin{minted}{typescript}
-function executeWithFallback(request, providerCombinations, requestId):
-    lastError = null
+\begin{minted}{python}
+for provider in sorted_providers:
+    try:
+        response = provider.makeRequest(request)
+        logSuccess(provider, response)
+        return response  # Success, stop trying
+    except APIError as e:
+        throw e  # User error (4xx), fail immediately
+    except TechnicalError as e:
+        logError(provider, e)
+        continue  # Try next provider
 
-    for i = 0 to providerCombinations.length - 1:
-        combination = providerCombinations[i]
-        adapter = createAdapter(combination.adapter, combination.config)
-
-        try:
-            console.log("Trying provider", combination.provider, "(attempt", i+1, ")")
-
-            // Execute request
-            response = await adapter.makeRequest(request, combination.providerModelId)
-
-            // Success: log and return
-            await logSuccessfulRequest(requestId, combination, response)
-            return response
-
-        catch error:
-            lastError = error
-
-            // If API error (4xx), fail immediately
-            if adapter.isAPIError(error):
-                await logFailedRequest(requestId, combination, error)
-                throw error
-
-            // Technical error: log, notify, continue to next provider
-            console.error("Provider", combination.provider, "failed:", error.message)
-            await notifyErrorAsync(error, combination)  // Non-blocking
-
-            if i == providerCombinations.length - 1:
-                // Last provider failed, no more fallback
-                throw lastError
-
-            // Continue to next provider
-            continue
-
-    throw lastError or Error("All providers failed")
+throw Error("All providers failed")
 \end{minted}
 \caption{Non-streaming fallback pseudo-code}
 \end{listing}
@@ -3701,6 +3716,123 @@ In conclusion, Makehub addresses a critical gap in the LLM ecosystem: the lack o
 %    \includegraphics[width=0.5\textwidth]{Thales-logo.png}
 %    \label{fig:Thales-logo}
 %\end{figure}
+
+
+\newpage
+\section*{Appendix: Technical Glossary}
+\addcontentsline{toc}{section}{Appendix: Technical Glossary}
+
+This glossary defines key technical terms used throughout this thesis, organized alphabetically.
+
+\subsection*{A}
+
+\textbf{API (Application Programming Interface):} A set of protocols and tools that allow different software applications to communicate with each other. In the context of LLMs, APIs enable developers to send requests to model providers and receive responses.
+
+\textbf{Autoregressive Generation:} A text generation paradigm where each token is predicted sequentially based on all previously generated tokens. This is the core mechanism underlying modern LLMs like GPT and LLaMA.
+
+\textbf{Attention Mechanism:} A neural network component that allows models to focus on different parts of the input when producing each output token. The Transformer architecture uses self-attention to process all input tokens in parallel.
+
+\subsection*{B}
+
+\textbf{Batching:} A serving optimization technique where multiple inference requests are processed together in a single forward pass through the model, improving GPU utilization and throughput.
+
+\textbf{Byte-Pair Encoding (BPE):} A tokenization algorithm that splits text into subword units by iteratively merging the most frequent pairs of characters or character sequences. Used by GPT models.
+
+\subsection*{C}
+
+\textbf{Cascading Fallback:} A reliability mechanism where failed requests are automatically retried with alternative providers in order of preference, ensuring high uptime despite individual provider failures.
+
+\textbf{Context Window:} The maximum combined length of input and output tokens that a model can process in a single request. Modern models range from 8K to 2M tokens.
+
+\textbf{Closed-Source Model:} A language model whose weights and training methodology are proprietary and controlled by a single vendor (e.g., GPT-4o, Claude 3.5, Gemini).
+
+\subsection*{D}
+
+\textbf{Decoder-Only Transformer:} A variant of the Transformer architecture that uses only the decoder component, optimized for autoregressive text generation. Used by GPT, LLaMA, and most modern LLMs.
+
+\textbf{Dynamic Routing:} The process of selecting providers or models at request time based on real-time performance metrics and user preferences, as opposed to static configuration.
+
+\subsection*{E}
+
+\textbf{Embedding:} A dense vector representation of text that captures semantic meaning. Used internally by LLMs and sometimes exposed as a separate API service.
+
+\subsection*{F}
+
+\textbf{Few-Shot Learning:} The ability of LLMs to perform tasks based on a few examples provided in the prompt, without task-specific fine-tuning.
+
+\textbf{Fine-Tuning:} The process of further training a pre-trained model on domain-specific data to specialize its capabilities.
+
+\subsection*{G}
+
+\textbf{GPU (Graphics Processing Unit):} Specialized hardware originally designed for graphics rendering but now essential for parallel computation in deep learning. Modern LLM inference relies on NVIDIA A100, H100, or AMD MI300 GPUs.
+
+\subsection*{I}
+
+\textbf{Inference:} The process of using a trained model to generate predictions or outputs for new inputs. In LLMs, this refers to generating text completions given a prompt.
+
+\textbf{Instruction-Tuning:} A fine-tuning approach where models are trained on examples of instructions and desired responses, improving their ability to follow user commands.
+
+\subsection*{L}
+
+\textbf{Latency:} The time elapsed between sending a request and receiving a response. For streaming requests, Time-to-First-Token (TTFT) measures latency to the first output token.
+
+\textbf{LLM (Large Language Model):} A deep neural network with billions of parameters trained on massive text corpora to predict the next token in a sequence, enabling capabilities like text generation, reasoning, and task completion.
+
+\textbf{LLM-as-a-Judge:} A technique where a language model evaluates or classifies inputs (e.g., complexity scoring, quality assessment) to guide downstream routing or processing decisions.
+
+\subsection*{M}
+
+\textbf{Model Family:} A group of related models sharing the same architecture and training approach but differing in size or specialization (e.g., GPT-4o, GPT-4o mini).
+
+\textbf{Multi-Objective Optimization:} An optimization approach that balances multiple competing goals (e.g., minimizing cost while maximizing throughput) using weighted scoring functions.
+
+\subsection*{O}
+
+\textbf{Open-Source Model:} A language model whose weights are publicly released, enabling decentralized hosting by multiple providers (e.g., LLaMA 3.1, Mistral, DeepSeek).
+
+\subsection*{P}
+
+\textbf{Parameter:} A learnable weight in a neural network. Modern LLMs contain billions to hundreds of billions of parameters (e.g., LLaMA 3.1 70B has 70 billion parameters).
+
+\textbf{Prompt:} The input text provided to an LLM to guide its generation. Prompts can include instructions, context, examples, and queries.
+
+\textbf{Prompt Caching:} An optimization where providers cache repeated prompt prefixes across requests, reducing processing time and cost for subsequent requests with the same context.
+
+\textbf{Prompt Compression:} A technique to reduce the number of input tokens by removing redundant or low-value content while preserving semantic meaning.
+
+\textbf{Provider:} An entity that hosts LLM infrastructure and exposes it via an API service (e.g., OpenAI, Together AI, AWS Bedrock).
+
+\subsection*{R}
+
+\textbf{Rate Limiting:} A provider-imposed restriction on the number of requests or tokens that can be processed per unit time, used to manage load and prevent abuse.
+
+\textbf{Routing:} The process of directing requests to specific providers or models based on optimization criteria (cost, latency, throughput, capabilities).
+
+\subsection*{S}
+
+\textbf{Streaming:} A response delivery method where output tokens are sent incrementally as they are generated, rather than waiting for complete generation. Improves perceived responsiveness.
+
+\textbf{System Prompt:} A special prompt component that defines the model's behavior, role, or constraints, typically preserved across conversation turns.
+
+\subsection*{T}
+
+\textbf{Throughput:} The rate at which output tokens are generated during streaming inference, measured in tokens per second (tokens/s).
+
+\textbf{Time-to-First-Token (TTFT):} The latency between sending a request and receiving the first output token. Critical for interactive applications requiring immediate feedback.
+
+\textbf{Token:} The fundamental unit of text processing in LLMs, typically representing subword units (e.g., "tokenization" → ["token", "ization"]). Model capacity, pricing, and performance are all measured in tokens.
+
+\textbf{Tokenization:} The process of converting text into tokens using algorithms like Byte-Pair Encoding (BPE) or SentencePiece.
+
+\textbf{Transformer:} A neural network architecture introduced in 2017 that uses attention mechanisms to process sequences in parallel. The foundation of all modern LLMs.
+
+\subsection*{V}
+
+\textbf{Vectorial Scoring:} A multi-dimensional ranking approach where providers are scored based on normalized distances in a feature space (e.g., price, latency, throughput).
+
+\textbf{Vision Model:} An LLM variant capable of processing both text and images as input (e.g., GPT-4o, Claude 3.5 Sonnet).
+
+\textbf{vLLM:} A high-performance open-source serving framework optimized for LLM inference, featuring PagedAttention and continuous batching.
 
 
 \printbibliography
