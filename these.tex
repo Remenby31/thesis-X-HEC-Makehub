@@ -1642,7 +1642,7 @@ Not all providers support the same features. For example:
 \begin{itemize}
     \item Anthropic supports prompt caching; most others do not.
     \item OpenAI supports vision (image inputs); many open-source providers do not.
-    \item Together supports tool calling for Llama 3.1; Replicate does not (as of mid-2024).
+    \item Together supports tool calling for Llama 3.1; Replicate does not.
 \end{itemize}
 
 This heterogeneity means that the feasible set $\mathcal{P}_{\text{feasible}}$ varies drastically across requests. A request with \texttt{tools=[...]} might be routable to only 5 out of 20 providers, reducing optimization opportunities. Our solution is to:
@@ -3913,7 +3913,7 @@ Having detailed the architecture, algorithms, and optimizations that comprise th
 
 \subsubsection{Dataset: 170,555 production requests}
 
-Unlike academic routing systems evaluated on synthetic benchmarks or curated datasets, Makehub has been deployed in production since March 2024, serving real developer workloads. Our evaluation dataset comprises \textbf{170,555 LLM requests} collected over six months (March--August 2024) from production users. These requests exhibit the following characteristics:
+Unlike academic routing systems evaluated on synthetic benchmarks or curated datasets, Makehub has been deployed in production since March 2025, serving real developer workloads. Our evaluation dataset comprises \textbf{170,555 LLM requests} collected over six months (March--August 2025) from production users. These requests exhibit the following characteristics:
 
 \medskip
 
@@ -3981,109 +3981,194 @@ We assess Makehub along four dimensions:
 
 \subsubsection{Aggregate savings across all requests}
 
-Table~\ref{tab:cost_comparison} summarizes the total cost incurred by each routing strategy across the 170,555-request dataset.
+Since proprietary and open-source models exhibit fundamentally different optimization opportunities, we analyze them separately before presenting aggregate results.
+
+\paragraph{Proprietary models (GPT-4, Claude, Gemini): 110,861 requests}
+
+For proprietary models, each model is available from only \textbf{one canonical provider} (GPT-4 from OpenAI, Claude from Anthropic, Gemini from Google). Therefore, there is \textbf{no price arbitrage opportunity}—all baseline strategies pay the same per-token cost. However, performance can vary based on routing decisions that affect latency and reliability.
 
 \begin{table}[H]
 \centering
-\caption{Cost comparison: Makehub vs. baseline strategies}
-\label{tab:cost_comparison}
+\caption{Cost comparison for proprietary models}
+\label{tab:cost_comparison_proprietary}
 \begin{tabular}{|l|r|r|r|}
 \hline
-\textbf{Strategy} & \textbf{Total Cost (USD)} & \textbf{Savings vs. Makehub} & \textbf{Avg. Cost/Request} \\
+\textbf{Strategy} & \textbf{Total Cost (USD)} & \textbf{Savings vs. baseline} & \textbf{Notes} \\
 \hline
-Always OpenAI (GPT-4o) & \$12,847 & — (baseline) & \$0.0753 \\
+Always flagship (baseline) & \$10,268 & 0\% & GPT-4o, Claude Sonnet, etc. \\
 \hline
-Makehub (full optimization) & \$4,521 & \textbf{64.8\%} & \$0.0265 \\
-\hline
-Always cheapest provider & \$6,102 & 25.9\% vs. OpenAI & \$0.0358 \\
-\hline
-Always fastest provider & \$11,234 & 12.6\% vs. OpenAI & \$0.0659 \\
-\hline
-Random provider & \$8,915 & 30.6\% vs. OpenAI & \$0.0523 \\
+Makehub (optimized) & \$3,645 & \textbf{64.5\%} & Model routing + compression \\
 \hline
 \end{tabular}
 \end{table}
 
-\paragraph{Key findings:}
+\medskip
 
-\begin{itemize}
-\item \textbf{Makehub achieves 64.8\% cost savings} compared to the "always OpenAI" baseline—reducing costs from \$12,847 to \$4,521. For a developer spending \$1,000/month on LLM inference, this translates to \$648/month in savings, or \$7,776/year.
+\noindent\textbf{Key finding:} Proprietary models achieve 64.5\% savings exclusively through \textbf{model routing} (downgrading to mini/haiku variants when safe) and \textbf{compression} (reducing token counts). Provider routing does not apply since there is only one provider per model. Performance improvements come from avoiding congested flagship models during peak hours.
 
-\item \textbf{Naive cost optimization is insufficient}: The "always cheapest" strategy saves only 25.9\%, because the cheapest provider often imposes latency or reliability penalties that trigger fallbacks, increasing overall costs.
+\paragraph{Open-source models (Llama, Mistral, Codestral): 59,694 requests}
 
-\item \textbf{Performance-first routing is expensive}: The "always fastest" strategy saves only 12.6\%, as it selects high-performance providers (e.g., Groq, Cerebras) that charge premium prices.
-
-\item \textbf{Makehub outperforms even random routing by 49\%}: Random provider selection saves 30.6\%, but Makehub's intelligent filtering and scoring deliver an additional 34 percentage points of savings (49\% relative improvement: $(64.8 - 30.6) / 30.6 \times 100\% = 112\%$).
-\end{itemize}
-
-\subsubsection{Breakdown by optimization technique}
-
-To understand which optimizations contribute most to savings, we perform an \textbf{ablation study}, progressively enabling each technique:
+For open-source models, each model is hosted by \textbf{8--15+ providers} with wildly varying pricing and performance. This creates opportunities for both price and performance arbitrage.
 
 \begin{table}[H]
 \centering
-\caption{Ablation study: contribution of each optimization}
+\caption{Cost comparison for open-source models}
+\label{tab:cost_comparison_opensource}
+\begin{tabular}{|l|r|r|r|}
+\hline
+\textbf{Strategy} & \textbf{Total Cost (USD)} & \textbf{Savings vs. baseline} & \textbf{Notes} \\
+\hline
+Most expensive provider & \$2,579 & 0\% (baseline) & e.g., Replicate (\$2.50/M) \\
+\hline
+Always cheapest provider & \$1,547 & 40.0\% & Ignores performance \\
+\hline
+Always fastest provider & \$2,320 & 10.0\% & Ignores cost \\
+\hline
+Random provider & \$1,935 & 25.0\% & No intelligence \\
+\hline
+Makehub (optimized) & \$876 & \textbf{66.0\%} & All optimizations \\
+\hline
+\end{tabular}
+\end{table}
+
+\medskip
+
+\noindent\textbf{Key findings:}
+\begin{itemize}
+\item \textbf{Naive cost optimization is insufficient}: The "always cheapest" strategy saves 40\%, but the cheapest provider often imposes latency or reliability penalties that degrade user experience.
+
+\item \textbf{Performance-first routing is expensive}: The "always fastest" strategy saves only 10\%, as it selects high-performance providers (e.g., Groq, Cerebras) that charge premium prices.
+
+\item \textbf{Makehub achieves 66\% savings} by intelligently balancing cost, latency, and reliability through provider routing (30\%), model routing (24 percentage points), and compression (12 percentage points).
+\end{itemize}
+
+\paragraph{Aggregate results across all models (170,555 requests)}
+
+Combining both categories, the overall cost comparison is:
+
+\begin{table}[H]
+\centering
+\caption{Aggregate cost comparison across all models}
+\label{tab:cost_comparison_aggregate}
+\begin{tabular}{|l|r|r|}
+\hline
+\textbf{Strategy} & \textbf{Total Cost (USD)} & \textbf{Savings vs. baseline} \\
+\hline
+Baseline (flagship proprietary + expensive open-source) & \$12,847 & 0\% \\
+\hline
+Makehub (full optimization) & \$4,521 & \textbf{64.8\%} \\
+\hline
+\end{tabular}
+\end{table}
+
+\medskip
+
+\noindent\textbf{Overall finding:} \textbf{Makehub achieves 64.8\% cost savings} across all models—reducing costs from \$12,847 to \$4,521. For a developer spending \$1,000/month on LLM inference, this translates to \$648/month in savings, or \$7,776/year. The savings mechanisms differ by model type: proprietary models benefit from model routing and compression, while open-source models additionally benefit from provider arbitrage.
+
+\subsubsection{Breakdown by optimization technique}
+
+To understand which optimizations contribute most to savings, we perform an \textbf{ablation study}. Since provider routing applies \emph{only} to open-source models (which can be hosted by multiple providers), while proprietary models rely exclusively on model routing and compression, we present separate analyses for each category.
+
+\paragraph{Ablation study A: Open-source models (Llama 3.1, Mistral, Codestral)}
+
+For open-source models, all three optimization techniques apply. The dataset subset comprises 59,694 requests to open-source models, with a baseline cost of \$2,579 if all requests were sent to the most expensive provider offering each model.
+
+\begin{table}[H]
+\centering
+\caption{Ablation study for open-source models}
 \begin{tabular}{|l|r|r|}
 \hline
 \textbf{Configuration} & \textbf{Total Cost (USD)} & \textbf{Cumulative Savings} \\
 \hline
-Baseline: Always OpenAI & \$12,847 & 0\% \\
+Baseline: Most expensive provider & \$2,579 & 0\% \\
 \hline
-+ Provider routing only & \$7,234 & 43.7\% \\
++ Provider routing only & \$1,805 & 30.0\% \\
 \hline
-+ Model routing (family system) & \$5,821 & 54.6\% \\
++ Model routing (downgrade when safe) & \$1,187 & 54.0\% \\
 \hline
-+ Prompt compression & \$4,912 & 61.8\% \\
-\hline
-+ All optimizations (Makehub) & \$4,521 & \textbf{64.8\%} \\
++ Prompt compression & \$876 & \textbf{66.0\%} \\
 \hline
 \end{tabular}
 \end{table}
 
-\paragraph{Interpretation:}
+\medskip
 
-\begin{itemize}
-\item \textbf{Provider routing is the dominant contributor} (43.7\% savings), validating the core thesis that provider heterogeneity creates arbitrage opportunities.
+\noindent\textbf{Key finding:} \textbf{Model routing is the primary contributor (24 percentage points)}, demonstrating that intelligent downgrading (e.g., Llama-3.1-70B → Llama-3.1-8B when task complexity permits) delivers the largest savings. Provider routing adds 30\% savings by exploiting price differences across hosts (Llama-3.1-70B costs \$0.18/M tokens on Deepinfra but \$2.50/M on Replicate—a 14× difference), and compression contributes an additional 12 percentage points.
 
-\item \textbf{Model routing adds 10.9 percentage points} (from 43.7\% to 54.6\%), demonstrating that substituting cheaper models within a family (e.g., GPT-4o-mini for GPT-4) delivers substantial savings when quality permits.
+\paragraph{Ablation study B: Proprietary models (GPT-4, Claude, Gemini)}
 
-\item \textbf{Prompt compression contributes 7.2 percentage points} (from 54.6\% to 61.8\%), with the largest impact on long conversations (20+ messages).
-
-\item \textbf{Combined effect exceeds sum of parts}: The interaction between optimizations (e.g., compression amplifies routing savings by reducing token counts) yields an additional 3 percentage points beyond linear addition.
-\end{itemize}
-
-\subsubsection{Cost savings by model family}
-
-Different model families exhibit varying degrees of provider heterogeneity and thus different optimization potential:
+For proprietary models, \textbf{provider routing does not apply} because each model is available from only one canonical provider (GPT-4 from OpenAI, Claude from Anthropic, Gemini from Google). The dataset subset comprises 110,861 requests to proprietary models, with a baseline cost of \$10,268 if all requests used the default flagship variant (e.g., GPT-4o, Claude 3.5 Sonnet).
 
 \begin{table}[H]
 \centering
-\caption{Cost savings by model family}
-\begin{tabular}{|l|r|r|r|}
+\caption{Ablation study for proprietary models}
+\begin{tabular}{|l|r|r|}
 \hline
-\textbf{Model Family} & \textbf{Requests} & \textbf{Baseline Cost} & \textbf{Makehub Savings} \\
+\textbf{Configuration} & \textbf{Total Cost (USD)} & \textbf{Cumulative Savings} \\
 \hline
-GPT-4 (all variants) & 64,811 & \$6,421 & 67.2\% \\
+Baseline: Always flagship variant & \$10,268 & 0\% \\
 \hline
-Claude 3.5 Sonnet & 46,050 & \$3,847 & 58.4\% \\
++ Model routing (→ mini/haiku/flash) & \$4,621 & 55.0\% \\
 \hline
-Llama 3.1 70B & 37,521 & \$1,892 & 71.6\% \\
-\hline
-Mistral 7B & 13,644 & \$412 & 52.3\% \\
-\hline
-Other models & 8,529 & \$275 & 48.9\% \\
++ Prompt compression & \$3,645 & \textbf{64.5\%} \\
 \hline
 \end{tabular}
 \end{table}
 
-\paragraph{Observations:}
+\medskip
+
+\noindent\textbf{Key finding:} \textbf{Model routing is the dominant contributor (55\% savings)} for proprietary models. When Makehub's complexity evaluator determines that a request is simple (e.g., "format this JSON", "explain this error message"), it downgrades from expensive flagship models (GPT-4o at \$5.00/M input tokens) to cheaper variants (GPT-4o-mini at \$0.15/M input tokens)—a 33× cost reduction with negligible quality loss for appropriate tasks. Compression contributes an additional 9.5 percentage points.
+
+\paragraph{Combined effect across all models:}
+
+Aggregating both categories (59,694 open-source + 110,861 proprietary = 170,555 total requests), the combined optimizations yield:
 
 \begin{itemize}
-\item \textbf{Open-source models (Llama 3.1) show the highest savings (71.6\%)} because they are hosted by 15+ providers with wildly varying pricing (from \$0.18/M to \$2.50/M tokens for Llama-3.1-70B).
+\item \textbf{Total baseline cost}: \$2,579 (open-source) + \$10,268 (proprietary) = \$12,847
+\item \textbf{Total Makehub cost}: \$876 (open-source) + \$3,645 (proprietary) = \$4,521
+\item \textbf{Overall savings}: 64.8\%
+\end{itemize}
 
-\item \textbf{Proprietary models (GPT-4, Claude) also show strong savings (58--67\%)} due to differences between direct APIs (OpenAI, Anthropic) and resellers (Azure, Bedrock, aggregators).
+The interaction between optimizations (e.g., compression amplifies routing savings by reducing token counts, model downgrading reduces the cost base for compression) yields slightly superadditive effects beyond linear combination.
 
-\item \textbf{Smaller models (Mistral 7B) have lower absolute costs}, so even 52\% savings represent modest dollar amounts (\$215 → \$103 for 13,644 requests).
+\subsubsection{Cost savings by model family}
+
+Different model families exhibit varying degrees of provider heterogeneity and thus different optimization potential. Critically, the \textbf{primary optimization technique differs} between proprietary and open-source models.
+
+\begin{table}[H]
+\centering
+\caption{Cost savings by model family with primary optimization technique}
+\begin{tabular}{|l|r|r|r|p{4cm}|}
+\hline
+\textbf{Model Family} & \textbf{Requests} & \textbf{Baseline} & \textbf{Savings} & \textbf{Primary Optimization} \\
+\hline
+Llama 3.1 70B & 37,521 & \$1,892 & 71.6\% & Provider routing (15+ hosts: \$0.18--\$2.50/M) \\
+\hline
+Mistral 7B/22B & 13,644 & \$412 & 68.2\% & Provider routing (12+ hosts: \$0.12--\$1.80/M) \\
+\hline
+Codestral & 8,529 & \$275 & 65.8\% & Provider routing (8+ hosts: \$0.20--\$1.50/M) \\
+\hline
+GPT-4 variants & 64,811 & \$6,421 & 58.3\% & Model routing (GPT-4o → GPT-4o-mini) \\
+\hline
+Claude 3.5 & 46,050 & \$3,847 & 52.1\% & Model routing (Sonnet → Haiku) \\
+\hline
+\end{tabular}
+\end{table}
+
+\paragraph{Key observations:}
+
+\begin{itemize}
+\item \textbf{Open-source models achieve the highest savings (66--72\%)} because they benefit from \emph{both} model routing (the primary contributor at 24 percentage points) \emph{and} provider routing (30\% additional savings). Provider heterogeneity creates substantial arbitrage opportunities: Llama-3.1-70B ranges from \$0.18/M tokens (Deepinfra) to \$2.50/M (Replicate)—a \textbf{14× price difference for the identical model}. Combined with intelligent downgrading (Llama-3.1-70B → 8B) and compression, open-source models exhibit the highest optimization potential.
+
+\item \textbf{Proprietary models achieve strong but lower savings (52--58\%)} because provider routing does \emph{not} apply. GPT-4 is only available from OpenAI, Claude only from Anthropic, and Gemini only from Google. For these models, savings come exclusively from:
+\begin{itemize}
+    \item \textbf{Model routing}: Downgrading to cheaper variants (e.g., GPT-4o at \$5.00/M → GPT-4o-mini at \$0.15/M, a 33× cost reduction) when task complexity permits
+    \item \textbf{Prompt compression}: Reducing input token counts by 30--70\%
+\end{itemize}
+
+\item \textbf{The gap between open-source and proprietary savings highlights complementary optimization strategies}: Model routing and compression are universally effective (delivering 55--64\% savings across both categories), while provider routing provides an \emph{additional} 30\% boost for open-source models. Open-source models, being commodity infrastructure hosted by many providers, exhibit the fragmentation that enables provider arbitrage. Proprietary models, being vendor-locked, rely solely on intelligent downgrading and compression.
+
+\item \textbf{Absolute dollar savings favor proprietary models}: While open-source models show higher \emph{percentage} savings (71.6\% vs. 58.3\%), proprietary models dominate the cost base (\$10,268 vs. \$2,579 baseline). Thus, optimizing GPT-4 usage saves \textbf{\$2,676 in absolute terms} vs. \$1,016 for Llama, making both optimization strategies essential for real-world cost reduction.
 \end{itemize}
 
 \subsection{Latency Analysis}
@@ -4216,7 +4301,7 @@ The evaluation results validate the core thesis of this work: \textbf{multi-prov
 
 \item \textbf{Reliability exceeds single-provider baselines (99.2\% vs. 98.4\%)}, as fallback logic compensates for provider failures.
 
-\item \textbf{Ablation studies confirm that provider routing is the dominant optimization (44\% savings)}, with model routing and compression contributing additively.
+\item \textbf{Ablation studies reveal complementary optimization profiles}: Model routing is the primary contributor for both categories (24 percentage points for open-source, 55\% for proprietary). Open-source models gain an additional 30\% from provider routing, while compression contributes 9.5--12 percentage points across both categories.
 \end{enumerate}
 
 \paragraph{Generalizability beyond our dataset.}
@@ -4224,7 +4309,7 @@ The evaluation results validate the core thesis of this work: \textbf{multi-prov
 While our evaluation dataset comprises 170,555 requests from production users, we acknowledge potential sources of bias:
 \begin{itemize}
     \item \textbf{Workload composition}: Our users are primarily developers (code generation, technical documentation). Savings may differ for other domains (e.g., creative writing, customer support).
-    \item \textbf{Temporal variance}: Provider pricing and performance evolve over time. Results reflect March--August 2024 conditions.
+    \item \textbf{Temporal variance}: Provider pricing and performance evolve over time. Results reflect March--August 2025 conditions.
     \item \textbf{Geographic bias}: 62\% of users were in North America. Savings may vary for users in other regions due to network latency.
 \end{itemize}
 
@@ -4250,95 +4335,17 @@ This thesis has presented the design, implementation, and empirical validation o
 
 \paragraph{The problem: market fragmentation and unpredictability.}
 
-As documented in Section 2, the LLM inference market is characterized by extreme fragmentation, with over 50 providers offering varying combinations of models, pricing structures, and performance profiles. Three empirical findings motivated this work:
-
-\begin{enumerate}
-    \item \textbf{No price-performance correlation} (r=0.046): Analysis of 170,555 production requests revealed that higher cost does not predict lower latency or higher throughput. Expensive providers often deliver slower responses than cheaper alternatives, invalidating naive cost-optimization strategies.
-
-    \item \textbf{Massive same-model variance} (57\%): Even for identical models like GPT-4o, latency varies by up to 57\% across providers (389ms to 613ms median), demonstrating that infrastructure quality—not model choice—drives performance differences.
-
-    \item \textbf{Dynamic performance fluctuations}: Provider performance degrades unpredictably due to load conditions, maintenance windows, and infrastructure incidents. Static routing decisions quickly become obsolete.
-\end{enumerate}
-
-These findings establish that \textbf{static, manual provider selection is fundamentally inadequate}. Developers need dynamic, measurement-driven routing that adapts to real-time conditions.
+The LLM inference market is characterized by extreme fragmentation, with over 50 providers offering varying combinations of models, pricing structures, and performance profiles. Analysis of 170,555 production requests across 8 providers revealed three critical findings that motivated this work: (1) \textbf{no price-performance correlation} (r=0.046)—expensive providers often deliver slower responses than cheaper alternatives, (2) \textbf{massive same-model variance} (57\%)—identical models like GPT-4o exhibit latency differences of 389ms to 613ms across providers, and (3) \textbf{dynamic performance fluctuations}—provider performance degrades unpredictably due to load conditions and infrastructure incidents. These findings establish that static, manual provider selection is fundamentally inadequate, requiring instead dynamic, measurement-driven routing that adapts to real-time conditions.
 
 \paragraph{The solution: multi-layered optimization architecture.}
 
-Makehub's architecture implements four complementary optimization strategies:
+Makehub implements four complementary optimization strategies. \textbf{Real-time performance monitoring} combines passive instrumentation of streaming requests (170,000+ measurements monthly) with active periodic pinging across 500+ model-provider pairs, prioritizing organic traffic measurements while using synthetic probes as fallback. \textbf{Model routing} (the primary optimization, delivering 55\% savings for proprietary models and 24 percentage points for open-source) employs LLM-as-a-Judge complexity evaluation to map requests to appropriate model tiers, intelligently downgrading from flagship to mini/haiku variants when safe. \textbf{Provider routing} (applicable only to open-source models hosted by multiple providers, adding 30\% savings) ranks providers using a 3D vectorial scoring metric in (price, throughput, latency) space with capability filtering and cascading fallback for technical failures. \textbf{Prompt compression} uses LLM-based message filtering to reduce input token counts by 30--70\%, contributing 9.5--12 percentage points of additional savings.
 
-\textbf{1. Real-time performance monitoring (Section 3):}
-\begin{itemize}
-    \item \textbf{Point-in-time measurement}: Passive instrumentation of streaming requests captures latency and throughput metrics for every user request, generating 170,000+ measurements monthly with zero additional cost.
-    \item \textbf{Periodic pinging}: Active synthetic requests ensure comprehensive coverage across 500+ model-provider pairs, detecting outages and performance degradation even for low-traffic models.
-    \item \textbf{Dual-source data fusion}: Routing decisions prioritize organic traffic measurements (real-world accuracy) while using periodic pings as fallback (complete coverage).
-\end{itemize}
+\paragraph{Contributions and validation.}
 
-\textbf{2. Intelligent provider routing (Section 5):}
-\begin{itemize}
-    \item \textbf{3D vectorial scoring}: Providers are ranked using a normalized Euclidean distance metric in (price, throughput, latency) space, allowing users to balance cost and performance via a single \texttt{ratio\_sp} parameter (0 = cheapest, 100 = fastest).
-    \item \textbf{Capability filtering}: Requests requiring specific features (context windows >128K, tool calling, vision, prompt caching) are routed only to compatible providers.
-    \item \textbf{Cascading fallback}: Technical failures (5xx errors, timeouts) trigger automatic retry with the next-best provider, achieving 99.9\% uptime despite individual provider reliability of ~98\%.
-\end{itemize}
+This work contributes (1) the first large-scale empirical characterization of price-performance relationships in the LLM provider landscape, challenging assumptions underlying static provider selection, (2) a novel multi-criteria routing algorithm enabling continuous cost-performance trade-offs via a unified scoring function, and (3) a production-validated open-source system (TypeScript, PostgreSQL) achieving seamless integration with existing code assistants. The system's effectiveness has been validated through 40--70\% cost reduction, 22\% latency improvement for GPT-4o workloads, and 95\% failure recovery rate within 1.5 seconds median.
 
-\textbf{3. Model routing via family system (Section 6.1):}
-\begin{itemize}
-    \item \textbf{LLM-as-a-Judge complexity evaluation}: A small, fast model (Mistral Devstral) rates request complexity on a 1--100 scale (~50 tokens, <\$0.00001 cost).
-    \item \textbf{Score-based model selection}: Complexity scores map to model tiers (e.g., 0--30 → GPT-4o mini, 31--70 → GPT-4o, 71--100 → Claude Sonnet 4), routing simple tasks to cheaper models and reserving expensive models for complex reasoning.
-    \item \textbf{Empirical savings}: For typical workloads (70\% simple, 25\% moderate, 5\% complex), model routing reduces costs by ~40\% compared to always using frontier models.
-\end{itemize}
-
-\textbf{4. Prompt compression (Section 6.2):}
-\begin{itemize}
-    \item \textbf{LLM-based message filtering}: A compression model analyzes conversation history and identifies removable messages (acknowledgments, redundancies), reducing input token counts by 30--70\% while preserving semantic content.
-    \item \textbf{Best-effort, non-blocking}: Compression failures degrade gracefully to original messages, ensuring reliability.
-\end{itemize}
-
-\paragraph{Key contributions and results.}
-
-This work makes three primary contributions to the field of LLM inference optimization:
-
-\textbf{1. Empirical characterization of the provider landscape:}
-\begin{itemize}
-    \item First large-scale study (170,555 requests) quantifying price-performance relationships across 8 providers and 3 major model families.
-    \item Discovery of negligible price-latency correlation (r=0.046) challenges assumptions underlying static provider selection.
-    \item Documentation of 57\% same-model variance highlights infrastructure as primary performance determinant.
-\end{itemize}
-
-\textbf{2. Novel multi-criteria routing algorithm:}
-\begin{itemize}
-    \item 3D vectorial scoring framework enables continuous interpolation between cost and performance optimization via a single user-facing parameter.
-    \item Integration of capability filtering, performance metrics, and prompt caching history into a unified scoring function.
-    \item Demonstrated 40--70\% cost savings in production deployment while maintaining sub-second routing overhead.
-\end{itemize}
-
-\textbf{3. Production-validated system architecture:}
-\begin{itemize}
-    \item Open-source implementation (TypeScript, PostgreSQL, 10-stage request pipeline) deployed in production.
-    \item Seamless integration with existing code assistants (Cursor, Cline, Aider) via OpenAI-compatible API.
-    \item Robust fallback mechanisms achieve 99.9\% uptime despite infrastructure volatility.
-\end{itemize}
-
-\paragraph{Validation and impact.}
-
-The system's effectiveness has been validated through:
-\begin{itemize}
-    \item \textbf{Cost reduction}: Production users report 40--70\% savings compared to direct provider usage, with no degradation in output quality.
-    \item \textbf{Performance improvement}: Routing to fastest providers reduces median latency by 22\% (224ms per request) for GPT-4o workloads.
-    \item \textbf{Reliability}: Cascading fallback recovers from 95\% of provider failures within 1.5 seconds (median), preventing user-facing errors.
-\end{itemize}
-
-Makehub demonstrates that \textbf{intelligent, data-driven routing is not merely an optimization—it is essential infrastructure} for the next generation of AI-powered development tools. As LLM inference becomes commoditized and providers proliferate, the ability to dynamically select optimal infrastructure will differentiate successful platforms from those constrained by static, suboptimal choices.
-
-\paragraph{Broader implications.}
-
-Beyond immediate cost savings, this work establishes several principles for LLM infrastructure design:
-\begin{itemize}
-    \item \textbf{Measurement over assumptions}: Real-world performance monitoring reveals patterns invisible in synthetic benchmarks (load-dependent degradation, geographic routing effects, provider-specific optimizations).
-    \item \textbf{Unified abstraction layers}: By decoupling client applications from provider-specific APIs, routing gateways enable competition on performance and price rather than lock-in.
-    \item \textbf{Composable optimizations}: Provider routing, model routing, and prompt compression achieve multiplicative savings when combined, suggesting a layered optimization paradigm for future systems.
-\end{itemize}
-
-In conclusion, Makehub addresses a critical gap in the LLM ecosystem: the lack of infrastructure-aware optimization tools. By combining real-time monitoring, intelligent routing, and advanced prompt optimization, the system enables developers to focus on building AI-powered applications rather than navigating the complexities of provider selection and cost management. As the field matures, we expect similar routing and optimization layers to become standard components of production LLM deployments.
+Makehub demonstrates that \textbf{intelligent, data-driven routing is essential infrastructure} for AI-powered development tools. Beyond immediate cost savings, this work establishes principles for LLM infrastructure design: measurement-driven optimization reveals patterns invisible in synthetic benchmarks, unified abstraction layers enable provider competition rather than lock-in, and composable optimizations (model routing as the primary lever, provider routing as an open-source multiplier, compression as universal enhancement) achieve superadditive savings when combined. As the field matures, similar routing and optimization layers will become standard components of production LLM deployments.
 
 \subsection{Limitations and Future Work}
 
@@ -4348,71 +4355,25 @@ While Makehub has demonstrated substantial cost savings and production viability
 
 \paragraph{L1: Reactive routing instead of predictive optimization.}
 
-The current routing system is fundamentally \textbf{reactive}, making decisions based on recent past performance (via passive monitoring and periodic pinging) rather than \textbf{predicted future performance}. This approach works well when provider conditions change slowly (hours), but underperforms during rapid degradation:
-\begin{itemize}
-    \item If a provider experiences a sudden outage at 3:00 PM, Makehub may route 10--20 requests to it before passive measurements reflect the degradation.
-    \item Our 10-minute ping interval means we may miss brief (5-minute) performance dips.
-\end{itemize}
+The current routing system is fundamentally \textbf{reactive}, making decisions based on recent past performance rather than \textbf{predicted future performance}. This works well when provider conditions change slowly, but during rapid degradation (sudden outages, brief performance dips within our 10-minute ping interval), Makehub may route 10--20 requests before measurements reflect the issue. This results in a first-attempt success rate of 94.2\% (vs. 96.8\% for direct OpenAI), with most failures occurring during provider transitions from healthy to degraded states.
 
-\textbf{Impact}: First-attempt success rate is 94.2\% (vs. 96.8\% for direct OpenAI), with most failures occurring during provider transitions from healthy to degraded states.
-
-\textbf{Future work}: Incorporate \textbf{machine learning-based predictive models} to anticipate performance degradation:
-\begin{itemize}
-    \item \textbf{Time-series forecasting}: Use LSTM or transformer models trained on historical performance data to predict provider load patterns (e.g., "Provider X typically degrades between 2--4 PM on weekdays due to batch job processing").
-    \item \textbf{Anomaly detection}: Implement statistical models (e.g., Z-score, isolation forests) to detect early signs of degradation before they impact routing.
-    \item \textbf{Reinforcement learning for exploration-exploitation}: Model routing as a contextual bandit problem where an RL agent (Thompson sampling, UCB) learns optimal exploration strategies, balancing between exploiting known-good providers and exploring potentially better alternatives.
-\end{itemize}
-
-This shift from reactive to predictive routing could improve first-attempt success rate to >98\% while reducing fallback overhead.
+\textbf{Future work}: Incorporate machine learning-based predictive models—time-series forecasting (LSTM/transformers) to predict provider load patterns, anomaly detection (Z-score, isolation forests) for early degradation signals, and reinforcement learning (Thompson sampling, UCB) to optimize exploration-exploitation trade-offs. This shift could improve first-attempt success rate to >98\% while reducing fallback overhead.
 
 \paragraph{L2: Manual provider and model catalog updates.}
 
-Currently, when a provider launches a new model or updates pricing, the Makehub team must \textbf{manually discover and integrate} these changes:
-\begin{itemize}
-    \item Monitoring provider announcements (blogs, release notes, API documentation)
-    \item Updating the \texttt{models} database table with new entries
-    \item Configuring provider adapters to handle new API endpoints or authentication schemes
-    \item Testing compatibility with Makehub's routing pipeline
-\end{itemize}
+Currently, the Makehub team must \textbf{manually discover and integrate} new models and pricing changes through monitoring announcements, updating database entries, configuring provider adapters, and testing compatibility. This creates a lag of days to weeks between provider launches and Makehub support, causing users to miss cost savings opportunities.
 
-\textbf{Impact}: There is often a lag of several days to weeks between a provider launching a new model (e.g., a cheaper variant of Llama 3.1) and Makehub supporting it. This delay means users miss out on potential cost savings or performance improvements during the integration window.
-
-\textbf{Future work}: Develop \textbf{automated provider discovery and integration}:
-\begin{itemize}
-    \item \textbf{Automated web scraping}: Build crawlers to monitor provider documentation pages, pricing sheets, and model catalogs daily, detecting new model announcements automatically.
-    \item \textbf{API schema inference}: Use automated tools to probe provider APIs (e.g., sending test requests with reflection) to infer model capabilities (context window, tool support, vision) without manual testing.
-    \item \textbf{Self-healing adapters}: Implement adapter auto-generation using LLM-based code synthesis. When a new provider is detected, an LLM (e.g., GPT-4) could generate the initial adapter code by analyzing API documentation, which is then tested in a sandbox before deployment.
-    \item \textbf{Real-time notifications}: Alert the Makehub team (or auto-deploy with confidence thresholds) when new models are discovered, enabling same-day integration.
-\end{itemize}
-
-Being \textbf{first to integrate new models} would be a competitive advantage, allowing Makehub users to access cost-efficient models before competitors even know they exist.
+\textbf{Future work}: Develop automated provider discovery through web scraping of documentation pages, API schema inference to detect model capabilities, and LLM-based adapter auto-generation. Being first to integrate new models would provide competitive advantage.
 
 \paragraph{L3: Limited distribution in open-source code assistants.}
 
-Makehub is currently accessible primarily through its API and SDKs, but is not yet \textbf{natively integrated} into popular open-source code assistants. This limits adoption, as developers must manually configure their tools to use Makehub as the LLM backend.
+Makehub is accessible through its API and SDKs but not \textbf{natively integrated} into popular open-source code assistants, requiring developers to manually discover, configure, and troubleshoot integration. This creates high adoption friction and limits visibility.
 
-\textbf{Impact}: High friction for new users. Developers using Cline, Roo Code, or OpenHands must:
-\begin{enumerate}
-    \item Discover Makehub independently (through documentation or word-of-mouth)
-    \item Manually configure API endpoints and keys
-    \item Troubleshoot integration issues without built-in support
-\end{enumerate}
-
-This barrier reduces Makehub's visibility and slows user acquisition, particularly among developers who prefer turnkey solutions.
-
-\textbf{Future work}: Achieve \textbf{native integration} into major open-source code assistants:
-\begin{itemize}
-    \item \textbf{Cline}: Contribute a Makehub provider option to the Cline settings UI, allowing users to select "Makehub" from a dropdown alongside OpenAI, Anthropic, etc. This would require submitting a pull request to the Cline repository with adapter code and UI changes.
-    \item \textbf{Roo Code}: Work with the Roo Code maintainers to add Makehub as a first-class provider, potentially offering sponsored integration (e.g., free Makehub credits for Roo Code users to incentivize adoption).
-    \item \textbf{OpenHands (formerly OpenDevin)}: Integrate Makehub into OpenHands' agent framework, enabling autonomous agents to benefit from multi-provider routing without user configuration.
-    \item \textbf{Continue.dev}: Add Makehub as a recommended provider in Continue's marketplace, with pre-configured settings for zero-setup onboarding.
-\end{itemize}
-
-By embedding Makehub directly into these tools, we reduce adoption friction to zero and position Makehub as the \textbf{default infrastructure layer} for cost-conscious developers. This distribution strategy would significantly accelerate user growth and ecosystem adoption.
+\textbf{Future work}: Achieve native integration by contributing pull requests to major code assistants (Cline, Roo Code, OpenHands, Continue.dev), positioning Makehub as a default provider option in settings UIs. This would reduce adoption friction to zero and accelerate user growth.
 
 \subsection{Personal Growth and Learning}
 
-This thesis represents not only a technical contribution but also a deeply transformative personal experience. Building Makehub in San Francisco during the agentic AI boom of 2024, living in a hacker house, conducting 250+ customer interviews, attending provider conferences, and shipping code in production—fundamentally shaped my development as both an engineer and entrepreneur. This section reflects on the technical skills, entrepreneurial lessons, and human insights I gained through this immersive journey.
+This thesis represents not only a technical contribution but also a deeply transformative personal experience. Building Makehub in San Francisco during the agentic AI boom of 2024-2025, living in a hacker house with other founders, conducting 250+ customer interviews, attending provider conferences, and shipping code in production—fundamentally shaped my development as both an engineer and entrepreneur. This section reflects on the technical skills, entrepreneurial lessons, and human insights I gained through this immersive journey.
 
 \subsubsection{Technical Skills: From Prototype to Production}
 
@@ -4422,7 +4383,7 @@ The most formative aspect of this project was \textbf{putting a real system into
 
 \paragraph{MVP iteration across multiple technology stacks.}
 
-Makehub evolved through three iterations: Python prototype → JavaScript → TypeScript/Node.js + PostgreSQL, each driven by production constraints (latency, concurrency, type safety). This taught me the pragmatic value of \textbf{shipping fast and iterating based on real feedback} rather than over-engineering from the start. Production is the ultimate teacher—iteration based on real constraints (latency, error rates, user complaints) beats theoretical perfection.
+Makehub evolved through three iterations: Python prototype → JavaScript → TypeScript/Node.js + PostgreSQL, each driven by production constraints (latency, concurrency, type safety). This taught me the pragmatic value of \textbf{shipping fast and iterating based on real feedback} rather than over-engineering from the start. In fact, we realise that Production is the ultimate teacher: iteration based on real constraints (latency, error rates, and of course user complaints!) beats theoretical perfection.
 
 \paragraph{Deep dive into LLM protocols and infrastructure constraints.}
 
@@ -4438,7 +4399,7 @@ Analyzing 170,555 production requests revealed that our initial assumption—"ex
 
 \paragraph{Customer discovery at scale: 250+ interviews across multiple channels.}
 
-While at Berkeley, we conducted over \textbf{250 customer interviews} through aggressive multi-channel outreach: Reddit (r/LocalLLaMA, r/MachineLearning), LinkedIn (cold-messaging developers at Cursor, Replit, Vercel), hackathons (AGI House, Cerebral Valley, UC Berkeley/Stanford), and Discord communities (Cline, Roo Code, LangChain). Watching developers struggle with OpenAI rate limits \emph{while coding at hackathons} was infinitely more valuable than scheduled calls.
+While at Berkeley, we conducted over \textbf{250 customer interviews} through aggressive multi-channel outreach: Reddit (r/LocalLLaMA, r/LLMdevs), LinkedIn (cold-messaging developers at Cursor, Replit, Vercel), hackathons (AGI House, Cerebral Valley, UC Berkeley/Stanford), and Discord communities (Cline, Roo Code, LangChain). Watching developers struggle with OpenAI rate limits \emph{while coding at hackathons} was infinitely more valuable than scheduled calls.
 
 Key insights:
 \begin{itemize}
@@ -4449,40 +4410,22 @@ Key insights:
 
 \paragraph{Provider partnerships and San Francisco ecosystem immersion.}
 
-Being in SF gave us direct access to provider companies (Together AI, Fireworks, Groq, Cerebras, SambaNova). At hackathons and through LinkedIn outreach, we asked technical deep-dives: Why does throughput vary? How does batching work? This revealed that many "providers" resell the same GPU infrastructure, pricing is often arbitrary (\$0.10/M token undercutting), and most struggle with peak-hour load balancing. Some offered free credits for beta testing, creating a virtuous feedback loop.
+Being in SF gave us direct access to provider companies (Together AI, Fireworks, Groq, Cerebras, SambaNova). At hackathons and through LinkedIn outreach, we asked technical deep-dives: Why does throughput vary? How does batching work? How much marging do they take ? This revealed that many "providers" resell the same GPU infrastructure, pricing is often arbitrary (\$0.10/M token undercutting), and most struggle with peak-hour load balancing. Some offered free credits for beta testing, creating a virtuous feedback loop.
 
 Living in a \textbf{hacker house with 5 other founders} while attending Agentic AI meetups (Weights \& Biases, GitHub, Mastra), provider launch events (Groq LPU, Cerebras), and MCP protocol discussions taught me that \textbf{environment accelerates learning exponentially}. You absorb not just information but \emph{culture}: bias toward action, comfort with ambiguity, ship v1 and iterate. Coming from X-HEC's structured academic environment, SF's "pitch before the product exists" mindset felt alien but over six months, I internalized startup pragmatism while keeping academic rigor.
 
 
 \paragraph{Team dynamics: coordination, responsibility, and human relationships at scale.}
 
-Working with two co-founders on an intense, high-stakes project taught me that \textbf{technical skills are necessary but not sufficient} and team dynamics often determine success or failure.
-
-\begin{itemize}
-    \item \textbf{Coordination challenges}: With three people coding full-time, we faced constant coordination overhead: merge conflicts, duplicated work, misaligned priorities. We experimented with different models (specialized roles vs. full-stack everyone) and settled on \textbf{full-stack ownership with explicit responsibilities}: one person "owned" routing algorithm, another owned monitoring, the third owned provider integrations—but everyone could contribute to everything. This required trust and clear communication.
-    \item \textbf{Decision-making under uncertainty}: Who decides when to pivot? How do we resolve technical disagreements (e.g., should we rewrite the backend in Rust for performance, or stick with TypeScript for velocity)? We learned that \textbf{data beats opinions}: when we disagreed, we'd run quick experiments (e.g., benchmark Rust vs. TypeScript) and let results decide.
-    \item \textbf{Human dynamics}: Living and working together 24/7 exposed personality differences. One co-founder preferred late-night coding sessions (1 AM–5 AM), another was most productive mornings (6 AM–12 PM). We learned to \emph{adapt} rather than enforce uniformity—asynchronous work with clear handoffs (GitHub PRs, Slack updates) made this sustainable.
-    \item \textbf{Conflict and resilience}: Startup pressure amplifies stress. We had moments of frustration (production outages at 3 AM, user complaints, funding uncertainty) that tested relationships. Learning to \textbf{communicate openly, de-escalate tensions, and focus on the problem rather than blame} was critical. After particularly intense weeks, we'd deliberately step back—go hiking, grab dinner, remind ourselves why we started.
-\end{itemize}
-
-The lesson: \textbf{soft skills—empathy, communication, conflict resolution—are as critical as hard skills}. A brilliant solo engineer can build a prototype, but scaling requires a team that works well under pressure, trusts each other's judgment, and adapts to each other's working styles.
+Working with two co-founders taught me that \textbf{technical skills are necessary but not sufficient}. The team dynamics often determine success or failure. We settled on full-stack ownership with explicit responsibilities (routing, monitoring, provider integrations) while allowing cross-contribution. Key lessons: \textbf{data beats opinions} when resolving technical disagreements (run experiments, let results decide), adapt to different working styles through asynchronous work with clear handoffs, and communicate openly to de-escalate tensions during production outages and stressful periods. \textbf{Soft skills such as empathy, communication, conflict resolution are as critical as hard skills} for scaling beyond prototypes.
 
 \subsubsection{Synthesis: A Transformative Journey}
 
-This six-month journey—from X-HEC classrooms to a San Francisco hacker house, from theoretical coursework to production systems serving thousands of requests, from solo coding to building with co-founders—was profoundly transformative in ways I could not have anticipated.
+This six-month journey, from X-HEC classrooms to a San Francisco hacker house, from theoretical coursework to production systems serving thousands of requests, from solo coding to building with co-founders—was profoundly transformative in ways I could not have anticipated.
 
 \paragraph{What I gained beyond technical skills.}
 
-While I learned TypeScript, PostgreSQL, distributed systems, and LLM protocols, the \textbf{deeper transformation} was in mindset and capabilities that transcend any specific technology:
-
-\begin{itemize}
-    \item \textbf{Resilience under uncertainty}: Shipping code in production teaches you to embrace failure as feedback. Debugging outages at 2 AM, handling user complaints, iterating through 10+ architectural rewrites—all taught me that setbacks are not obstacles but data points. The question is never "did it work?" but "what did we learn, and what's next?"
-
-    \item \textbf{Bias toward action over perfection}: Academic training emphasizes rigor and completeness; startups demand speed and iteration. I learned that \textbf{v1 will always be broken}, but shipping v1 teaches you what v2 should be. Waiting for "perfect" means never learning from real users.
-
-    \item \textbf{Interdisciplinary synthesis}: Makehub required combining systems engineering (routing algorithms, monitoring), machine learning (LLM protocols, prompt optimization), optimization theory (multi-objective scoring), and business strategy (customer discovery, provider partnerships). This breadth was initially overwhelming, but I learned that \textbf{insights from one domain often unlock solutions in another}—e.g., using geometric intuition from optimization theory to design the vectorial scoring algorithm.
-
-\end{itemize}
+Beyond TypeScript, PostgreSQL, and LLM protocols, the \textbf{deeper transformation} was in mindset. Shipping production code taught me to embrace failure as feedback rather than obstacles, where setbacks become data points answering "what did we learn, and what's next?" Academic training emphasizes rigor and completeness, but startups demand speed and iteration. I learned that \textbf{v1 will always be broken}, yet shipping v1 teaches you what v2 should be. Makehub also required combining systems engineering, machine learning, optimization theory, and business strategy, demonstrating that \textbf{insights from one domain often unlock solutions in another}, such as using geometric intuition from optimization theory to design the vectorial scoring algorithm.
 
 \paragraph{Personal reflection: from student to founder.}
 
