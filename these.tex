@@ -58,20 +58,20 @@
 
 \begin{document}
 
-% Logo HEC en haut
+% Logo X-HEC en haut
 \begin{figure}[t]
 \centering
-\includegraphics[width=8cm]{images/hec.png}
+\includegraphics[width=16cm]{images/x-hec-upscale.jpeg}
 \end{figure}
 
-\title{\vspace{2cm} \textbf{Optimization and Routing of LLM Requests Across Different Providers}\\ \vspace{0.5cm} \textbf{Final thesis X-HEC}}
+\title{\vspace{1cm} \textbf{Optimization and Routing of LLM Requests Across Different Providers}\\ \vspace{0.5cm} \textbf{Final thesis X-HEC}}
 \author{
-    CRUVELLIER Baptiste\\[2em]
+    CRUVELLIER Baptiste\\[1em]
     \textbf{Academic advisor :} Gentian Jakllari\\
     \textbf{Company :} Makehub\\[1em]
     \includegraphics[width=5cm]{images/logo_makehub.png}
 }
-\date{\vspace{3cm} Master X-HEC\\
+\date{\vspace{1cm} Master X-HEC\\
 2025 }
 
 \maketitle
@@ -3919,7 +3919,7 @@ Unlike academic routing systems evaluated on synthetic benchmarks or curated dat
 
 \noindent\textbf{Workload composition:}
 \begin{itemize}
-    \item \textbf{Application domains}: Code generation (42\%), technical documentation (28\%), data analysis (18\%), conversational AI (12\%)
+    \item \textbf{Application domains}: Hard to say but probably mostly Code generation and agentic tasks
     \item \textbf{Model families}: GPT-4 class (38\%), Claude 3.5 Sonnet (27\%), Llama 3.1 70B (22\%), Mistral 7B (8\%), others (5\%)
     \item \textbf{Request types}: Streaming (87\%), non-streaming (13\%); with tool calling (31\%), with vision (9\%)
     \item \textbf{Conversation lengths}: Single-turn (45\%), 2--5 turns (32\%), 6--20 turns (18\%), 20+ turns (5\%)
@@ -4440,29 +4440,55 @@ This glossary defines key technical terms used throughout this thesis, organized
 
 \subsection*{A}
 
+\textbf{Adapter Pattern:} A software design pattern that allows incompatible interfaces to work together. In Makehub, adapters translate between the unified OpenAI-compatible API and provider-specific protocols (e.g., Anthropic's message format, AWS Bedrock's authentication).
+
+\textbf{Agentic System:} An AI system capable of autonomous multi-step task execution, including planning, tool use, and environment interaction. Modern code assistants like Cursor and Cline are agentic systems that can read files, execute commands, and create pull requests.
+
 \textbf{API (Application Programming Interface):} A set of protocols and tools that allow different software applications to communicate with each other. In the context of LLMs, APIs enable developers to send requests to model providers and receive responses.
+
+\textbf{API Gateway:} A server that acts as an intermediary between clients and backend services, handling routing, authentication, rate limiting, and protocol translation. Makehub implements an API gateway architecture to route requests across multiple LLM providers.
 
 \textbf{Autoregressive Generation:} A text generation paradigm where each token is predicted sequentially based on all previously generated tokens. This is the core mechanism underlying modern LLMs like GPT and LLaMA.
 
 \textbf{Attention Mechanism:} A neural network component that allows models to focus on different parts of the input when producing each output token. The Transformer architecture uses self-attention to process all input tokens in parallel.
 
+\textbf{AWS Bedrock:} Amazon's managed service for accessing foundation models from multiple providers (Anthropic, Meta, Mistral, etc.) through a unified API with enterprise features like VPC integration and CloudWatch logging.
+
 \subsection*{B}
 
+\textbf{Backward Compatibility:} The ability of a system to work with older versions of software or data formats. Makehub maintains backward compatibility with the OpenAI Chat Completions API, ensuring existing client code works without modification.
+
 \textbf{Batching:} A serving optimization technique where multiple inference requests are processed together in a single forward pass through the model, improving GPU utilization and throughput.
+
+\textbf{Biber:} A bibliography processing tool for LaTeX that works with biblatex. Used in academic document preparation to format citations and references according to specified styles.
 
 \textbf{Byte-Pair Encoding (BPE):} A tokenization algorithm that splits text into subword units by iteratively merging the most frequent pairs of characters or character sequences. Used by GPT models.
 
 \subsection*{C}
 
+\textbf{Capability Matrix:} A database table or data structure that tracks which features (tool calling, vision, caching) are supported by each model-provider combination. Essential for filtering compatible providers during routing.
+
 \textbf{Cascading Fallback:} A reliability mechanism where failed requests are automatically retried with alternative providers in order of preference, ensuring high uptime despite individual provider failures.
 
-\textbf{Context Window:} The maximum combined length of input and output tokens that a model can process in a single request. Modern models range from 8K to 2M tokens.
+\textbf{Chat Completions API:} The standardized API format introduced by OpenAI for conversational interactions with LLMs. Accepts a list of messages with roles (system, user, assistant) and returns generated responses.
 
 \textbf{Closed-Source Model:} A language model whose weights and training methodology are proprietary and controlled by a single vendor (e.g., GPT-4o, Claude 3.5, Gemini).
 
+\textbf{Code Assistant:} An AI-powered tool that helps developers write, understand, and modify code. Examples include GitHub Copilot, Cursor, Cline, and Claude Code.
+
+\textbf{Coefficient of Variation (CV):} A statistical measure of relative variability, calculated as the ratio of standard deviation to mean. Used in Makehub to quantify provider performance stability over time.
+
+\textbf{Context Window:} The maximum combined length of input and output tokens that a model can process in a single request. Modern models range from 8K to 2M tokens.
+
+\textbf{Continuous Batching:} An advanced batching technique where requests are dynamically added to and removed from batches as they arrive and complete, maximizing GPU utilization without increasing latency.
+
 \subsection*{D}
 
+\textbf{Datadog:} A cloud-based monitoring and analytics platform used for tracking application performance, logs, and infrastructure metrics. Makehub uses Datadog for production monitoring.
+
 \textbf{Decoder-Only Transformer:} A variant of the Transformer architecture that uses only the decoder component, optimized for autoregressive text generation. Used by GPT, LLaMA, and most modern LLMs.
+
+\textbf{Delta:} In streaming responses, the incremental text fragment sent in each Server-Sent Event. Clients concatenate deltas to reconstruct the complete response.
 
 \textbf{Dynamic Routing:} The process of selecting providers or models at request time based on real-time performance metrics and user preferences, as opposed to static configuration.
 
@@ -4470,43 +4496,101 @@ This glossary defines key technical terms used throughout this thesis, organized
 
 \textbf{Embedding:} A dense vector representation of text that captures semantic meaning. Used internally by LLMs and sometimes exposed as a separate API service.
 
+\textbf{End-of-Sequence (EOS) Token:} A special token that signals the completion of text generation. Different models use different EOS tokens, which adapters must normalize.
+
+\textbf{Euclidean Distance:} A geometric measure of straight-line distance between two points in multi-dimensional space. Makehub uses Euclidean distance to score providers in 3D (price, throughput, latency) space.
+
+\textbf{Exponential Backoff:} A retry strategy where the wait time between attempts increases exponentially (e.g., 1s, 2s, 4s, 8s). Used when handling rate limits and transient errors.
+
 \subsection*{F}
+
+\textbf{Fallback Provider:} A backup provider used when the primary provider fails. Makehub maintains a ranked list of fallback providers for each model, enabling automatic retry without user intervention.
+
+\textbf{Family Routing:} Makehub's model routing system where a single logical identifier (e.g., "smart-assistant") maps to multiple concrete models based on complexity evaluation.
 
 \textbf{Few-Shot Learning:} The ability of LLMs to perform tasks based on a few examples provided in the prompt, without task-specific fine-tuning.
 
 \textbf{Fine-Tuning:} The process of further training a pre-trained model on domain-specific data to specialize its capabilities.
 
+\textbf{Finish Reason:} A field in the response indicating why generation stopped (e.g., "stop" for natural completion, "length" for token limit, "tool\_calls" for function invocation).
+
 \subsection*{G}
 
 \textbf{GPU (Graphics Processing Unit):} Specialized hardware originally designed for graphics rendering but now essential for parallel computation in deep learning. Modern LLM inference relies on NVIDIA A100, H100, or AMD MI300 GPUs.
 
+\textbf{Groq:} A specialized inference provider using custom Language Processing Units (LPUs) designed for ultra-low latency LLM inference, achieving 300--500 tokens/s throughput.
+
+\subsection*{H}
+
+\textbf{H100:} NVIDIA's latest high-performance GPU designed for AI workloads, offering 2-3× better performance than the previous A100 generation. Many premium providers use H100 clusters.
+
+\textbf{Heterogeneity:} Variability across providers in pricing, performance, capabilities, and reliability. Makehub's value proposition depends on exploiting this heterogeneity through intelligent routing.
+
+\textbf{HTTP Status Code:} A three-digit code returned by servers to indicate the result of a request. 2xx = success, 4xx = client error, 5xx = server error. Used for error classification in fallback logic.
+
 \subsection*{I}
+
+\textbf{Idempotency:} The property that performing an operation multiple times produces the same result as performing it once. Important for safely retrying failed requests.
 
 \textbf{Inference:} The process of using a trained model to generate predictions or outputs for new inputs. In LLMs, this refers to generating text completions given a prompt.
 
 \textbf{Instruction-Tuning:} A fine-tuning approach where models are trained on examples of instructions and desired responses, improving their ability to follow user commands.
 
+\subsection*{J}
+
+\textbf{JSON (JavaScript Object Notation):} A lightweight data interchange format used for API requests and responses. All Makehub API requests and responses use JSON encoding.
+
+\textbf{JWT (JSON Web Token):} A compact token format for securely transmitting authentication and authorization information between parties. Makehub supports JWT-based authentication.
+
 \subsection*{L}
 
 \textbf{Latency:} The time elapsed between sending a request and receiving a response. For streaming requests, Time-to-First-Token (TTFT) measures latency to the first output token.
+
+\textbf{LLaMA (Large Language Model Meta AI):} Meta's family of open-source language models (7B to 405B parameters). LLaMA 3.1 70B is one of the most popular open-source models for code generation.
 
 \textbf{LLM (Large Language Model):} A deep neural network with billions of parameters trained on massive text corpora to predict the next token in a sequence, enabling capabilities like text generation, reasoning, and task completion.
 
 \textbf{LLM-as-a-Judge:} A technique where a language model evaluates or classifies inputs (e.g., complexity scoring, quality assessment) to guide downstream routing or processing decisions.
 
+\textbf{Load Balancing:} Distributing incoming requests across multiple servers to optimize resource utilization and prevent overload. Providers use load balancing internally; Makehub performs load balancing across providers.
+
 \subsection*{M}
+
+\textbf{Median:} A statistical measure of central tendency representing the middle value when data is sorted. More robust to outliers than the mean. Makehub uses median for performance metrics.
+
+\textbf{Message Filtering:} A prompt compression technique that removes redundant or low-value messages from conversation history to reduce input token counts.
+
+\textbf{Metrics Collection:} The process of measuring and recording performance data (latency, throughput) during request processing for future routing decisions.
 
 \textbf{Model Family:} A group of related models sharing the same architecture and training approach but differing in size or specialization (e.g., GPT-4o, GPT-4o mini).
 
 \textbf{Multi-Objective Optimization:} An optimization approach that balances multiple competing goals (e.g., minimizing cost while maximizing throughput) using weighted scoring functions.
 
+\textbf{Multi-Turn Conversation:} A dialogue consisting of multiple back-and-forth exchanges between user and assistant, accumulating context over time. Prompt caching is particularly valuable for multi-turn conversations.
+
+\subsection*{N}
+
+\textbf{Normalization:} Scaling values to a standard range (typically 0-1) to enable fair comparison across different units. Makehub normalizes price, latency, and throughput before scoring.
+
+\textbf{ntfy:} A simple notification service for sending push notifications via HTTP. Makehub uses ntfy for real-time error alerting.
+
 \subsection*{O}
 
 \textbf{Open-Source Model:} A language model whose weights are publicly released, enabling decentralized hosting by multiple providers (e.g., LLaMA 3.1, Mistral, DeepSeek).
 
+\textbf{OpenAI-Compatible API:} An API that follows OpenAI's Chat Completions specification, enabling drop-in replacement without code changes. Most providers offer OpenAI-compatible endpoints.
+
 \subsection*{P}
 
+\textbf{PagedAttention:} A memory management technique introduced by vLLM that stores KV cache in non-contiguous memory pages, reducing fragmentation and enabling higher batch sizes.
+
 \textbf{Parameter:} A learnable weight in a neural network. Modern LLMs contain billions to hundreds of billions of parameters (e.g., LLaMA 3.1 70B has 70 billion parameters).
+
+\textbf{Percentile:} A statistical measure indicating the value below which a given percentage of observations fall. P95 latency = 95\% of requests complete faster than this value.
+
+\textbf{PostgreSQL:} An open-source relational database management system. Makehub uses PostgreSQL for storing models, requests, metrics, and user data.
+
+\textbf{Price Arbitrage:} Exploiting price differences between providers offering the same model to minimize cost. Most effective for open-source models with 10+ hosting options.
 
 \textbf{Prompt:} The input text provided to an LLM to guide its generation. Prompts can include instructions, context, examples, and queries.
 
@@ -4516,19 +4600,41 @@ This glossary defines key technical terms used throughout this thesis, organized
 
 \textbf{Provider:} An entity that hosts LLM infrastructure and exposes it via an API service (e.g., OpenAI, Together AI, AWS Bedrock).
 
+\textbf{Provider Heterogeneity:} Variation in pricing, performance, and capabilities across providers. The primary condition enabling Makehub's optimization strategies.
+
+\subsection*{Q}
+
+\textbf{Quantization:} A compression technique that reduces model weight precision (e.g., from FP16 to INT8 or INT4), decreasing memory usage and increasing throughput at the cost of minor accuracy degradation.
+
+\textbf{Query:} In database context, a request to retrieve or manipulate data. Makehub performs SQL queries to fetch model metadata and performance metrics.
+
 \subsection*{R}
 
+\textbf{Railway:} A modern cloud platform for deploying applications with automatic scaling and zero-config infrastructure. One of Makehub's hosting options.
+
 \textbf{Rate Limiting:} A provider-imposed restriction on the number of requests or tokens that can be processed per unit time, used to manage load and prevent abuse.
+
+\textbf{Redis:} An in-memory data structure store used as a cache, message broker, and session store. Makehub uses Redis for caching routing decisions.
+
+\textbf{Retrospective Analysis:} Evaluating what would have happened under alternative strategies using historical data. Used for baseline comparisons in Makehub's evaluation.
 
 \textbf{Routing:} The process of directing requests to specific providers or models based on optimization criteria (cost, latency, throughput, capabilities).
 
 \subsection*{S}
 
+\textbf{SDK (Software Development Kit):} A collection of libraries, documentation, and tools for integrating with a service. Makehub provides SDKs for Python, JavaScript, and TypeScript.
+
+\textbf{Server-Sent Events (SSE):} A web standard for server-to-client streaming over HTTP. Used by LLM providers to stream token-by-token responses.
+
 \textbf{Streaming:} A response delivery method where output tokens are sent incrementally as they are generated, rather than waiting for complete generation. Improves perceived responsiveness.
+
+\textbf{Supabase:} An open-source Firebase alternative providing PostgreSQL database, authentication, and real-time subscriptions. Makehub uses Supabase for database hosting.
 
 \textbf{System Prompt:} A special prompt component that defines the model's behavior, role, or constraints, typically preserved across conversation turns.
 
 \subsection*{T}
+
+\textbf{Temperature:} A hyperparameter controlling randomness in generation. Lower values (0.0-0.3) produce deterministic outputs; higher values (0.7-1.0) increase creativity and variability.
 
 \textbf{Throughput:} The rate at which output tokens are generated during streaming inference, measured in tokens per second (tokens/s).
 
@@ -4538,15 +4644,562 @@ This glossary defines key technical terms used throughout this thesis, organized
 
 \textbf{Tokenization:} The process of converting text into tokens using algorithms like Byte-Pair Encoding (BPE) or SentencePiece.
 
+\textbf{Tool Calling (Function Calling):} A capability allowing LLMs to invoke external functions or APIs during generation. Requires special formatting and is not supported by all models.
+
 \textbf{Transformer:} A neural network architecture introduced in 2017 that uses attention mechanisms to process sequences in parallel. The foundation of all modern LLMs.
+
+\textbf{TypeScript:} A statically-typed superset of JavaScript providing compile-time type checking. Makehub's backend is written in TypeScript for type safety.
+
+\subsection*{U}
+
+\textbf{Unified API:} An abstraction layer that presents a consistent interface across multiple heterogeneous backends. Makehub provides a unified API compatible with OpenAI's specification.
+
+\textbf{Uptime:} The percentage of time a service is operational and accessible. Makehub achieves 99.2\% uptime through cascading fallback.
+
+\textbf{UUID (Universally Unique Identifier):} A 128-bit identifier that is virtually guaranteed to be unique without central coordination. Used for request\_id, user\_id in Makehub's database.
 
 \subsection*{V}
 
 \textbf{Vectorial Scoring:} A multi-dimensional ranking approach where providers are scored based on normalized distances in a feature space (e.g., price, latency, throughput).
 
+\textbf{Vercel:} A cloud platform for deploying frontend applications and serverless functions with automatic scaling and edge distribution.
+
 \textbf{Vision Model:} An LLM variant capable of processing both text and images as input (e.g., GPT-4o, Claude 3.5 Sonnet).
 
 \textbf{vLLM:} A high-performance open-source serving framework optimized for LLM inference, featuring PagedAttention and continuous batching.
+
+\subsection*{W}
+
+\textbf{Weights:} The learned parameters of a neural network. Model "weights" are the numeric values stored after training, determining the model's behavior.
+
+\textbf{Weighted Scoring:} An optimization approach that combines multiple metrics (price, latency, throughput) using user-defined weights to compute a single score.
+
+\subsection*{X}
+
+\textbf{X-HEC Paris:} École Polytechnique - HEC Paris, the dual-degree program combining engineering (École Polytechnique) and business (HEC Paris) education. This thesis was written as part of the X-HEC curriculum.
+
+\subsection*{Y}
+
+\textbf{YAML (YAML Ain't Markup Language):} A human-readable data serialization format commonly used for configuration files. Alternative to JSON with more concise syntax.
+
+\textbf{Yield:} In Python and TypeScript, a keyword used in generator functions to produce values incrementally. Makehub uses async generators with yield for streaming responses.
+
+\subsection*{Z}
+
+\textbf{Zero-Shot Learning:} The ability of LLMs to perform tasks without any examples in the prompt, relying solely on instructions and pre-trained knowledge.
+
+\textbf{Z-Score:} A statistical measure indicating how many standard deviations a data point is from the mean. Used for anomaly detection in provider performance monitoring.
+
+\newpage
+\section*{Appendix A: Complete Database Schema}
+\addcontentsline{toc}{section}{Appendix A: Complete Database Schema}
+
+This appendix presents the complete PostgreSQL database schema used by Makehub, including all tables, indexes, and relationships.
+
+\subsection*{A.1 Core Tables}
+
+\subsubsection*{Models Table}
+
+\begin{listing}[H]
+\begin{minted}{sql}
+CREATE TABLE models (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    model_id VARCHAR(255) NOT NULL,
+    provider VARCHAR(100) NOT NULL,
+    provider_model_id VARCHAR(255) NOT NULL,
+    base_url TEXT NOT NULL,
+    adapter VARCHAR(50) NOT NULL,
+    context_window INTEGER NOT NULL,
+    price_per_input_token NUMERIC(10, 8) NOT NULL,
+    price_per_output_token NUMERIC(10, 8) NOT NULL,
+    price_per_cached_input_token NUMERIC(10, 8),
+    support_tool_calling BOOLEAN DEFAULT false,
+    support_vision BOOLEAN DEFAULT false,
+    support_input_cache BOOLEAN DEFAULT false,
+    support_streaming BOOLEAN DEFAULT true,
+    quantisation INTEGER,
+    display_name VARCHAR(255),
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(model_id, provider)
+);
+
+CREATE INDEX idx_models_model_id ON models(model_id);
+CREATE INDEX idx_models_provider ON models(provider);
+CREATE INDEX idx_models_active ON models(is_active) WHERE is_active = true;
+\end{minted}
+\caption{Models table schema}
+\end{listing}
+
+\subsubsection*{Requests Table}
+
+\begin{listing}[H]
+\begin{minted}{sql}
+CREATE TABLE requests (
+    request_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(user_id),
+    model VARCHAR(255) NOT NULL,
+    provider VARCHAR(100),
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    cached_tokens INTEGER DEFAULT 0,
+    cost NUMERIC(10, 6),
+    status VARCHAR(50) NOT NULL,
+    streaming BOOLEAN DEFAULT false,
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    completed_at TIMESTAMP,
+    duration_ms INTEGER
+);
+
+CREATE INDEX idx_requests_user_id ON requests(user_id);
+CREATE INDEX idx_requests_created_at ON requests(created_at DESC);
+CREATE INDEX idx_requests_model_provider ON requests(model, provider);
+\end{minted}
+\caption{Requests table schema}
+\end{listing}
+
+\subsubsection*{Metrics Table}
+
+\begin{listing}[H]
+\begin{minted}{sql}
+CREATE TABLE metrics (
+    metric_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    request_id UUID NOT NULL REFERENCES requests(request_id),
+    latency NUMERIC(8, 3),
+    throughput_tokens_s NUMERIC(8, 2),
+    time_to_first_chunk NUMERIC(8, 3),
+    total_duration NUMERIC(8, 3),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_metrics_request_id ON metrics(request_id);
+CREATE INDEX idx_metrics_created_at ON metrics(created_at DESC);
+\end{minted}
+\caption{Metrics table schema}
+\end{listing}
+
+\subsubsection*{Users and Transactions Tables}
+
+\begin{listing}[H]
+\begin{minted}{sql}
+CREATE TABLE users (
+    user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    api_key VARCHAR(255) UNIQUE NOT NULL,
+    wallet_balance NUMERIC(10, 2) DEFAULT 0.00,
+    preferences JSONB,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE transactions (
+    transaction_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(user_id),
+    amount NUMERIC(10, 6) NOT NULL,
+    type VARCHAR(20) NOT NULL CHECK (type IN ('debit', 'credit')),
+    request_id UUID REFERENCES requests(request_id),
+    description TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_transactions_user_id ON transactions(user_id);
+CREATE INDEX idx_transactions_created_at ON transactions(created_at DESC);
+\end{minted}
+\caption{Users and transactions tables}
+\end{listing}
+
+\subsubsection*{Family Table}
+
+\begin{listing}[H]
+\begin{minted}{sql}
+CREATE TABLE family (
+    family_id VARCHAR(100) PRIMARY KEY,
+    is_active BOOLEAN DEFAULT true,
+    evaluation_model_id VARCHAR(255) NOT NULL,
+    evaluation_provider VARCHAR(100) NOT NULL,
+    routing_config JSONB NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+\end{minted}
+\caption{Family table schema}
+\end{listing}
+
+\subsection*{A.2 Entity Relationship Diagram}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    node distance=2cm,
+    entity/.style={rectangle, draw, minimum width=3cm, minimum height=1cm, align=center},
+    relationship/.style={diamond, draw, minimum width=2cm, minimum height=1cm, align=center},
+    attribute/.style={ellipse, draw, minimum width=2cm, minimum height=0.8cm, align=center}
+]
+
+% Entities
+\node[entity] (users) {Users};
+\node[entity, right=of users] (requests) {Requests};
+\node[entity, right=of requests] (metrics) {Metrics};
+\node[entity, below=of requests] (transactions) {Transactions};
+\node[entity, above=of requests] (models) {Models};
+\node[entity, left=of users] (family) {Family};
+
+% Relationships
+\draw[thick, ->] (users) -- (requests) node[midway, above] {1:N};
+\draw[thick, ->] (requests) -- (metrics) node[midway, above] {1:1};
+\draw[thick, ->] (users) -- (transactions) node[midway, right] {1:N};
+\draw[thick, ->] (requests) -- (transactions) node[midway, right] {1:N};
+\draw[thick, -] (models) -- (requests) node[midway, right] {reference};
+
+\end{tikzpicture}
+\caption{Entity relationship diagram}
+\end{figure}
+
+\newpage
+\section*{Appendix B: Implementation Code Samples}
+\addcontentsline{toc}{section}{Appendix B: Implementation Code Samples}
+
+This appendix provides core implementation code for key algorithms described in the thesis.
+
+\subsection*{B.1 Provider Filtering Algorithm}
+
+\begin{listing}[H]
+\begin{minted}{typescript}
+async function filterProviders(
+    request: StandardRequest,
+    userId: string,
+    userPreferences: UserPreferences
+): Promise<ProviderCombination[]> {
+
+    // Stage 1: Initial model catalog lookup
+    const models = await database.query(
+        `SELECT * FROM models
+         WHERE (model_id = $1 OR provider_model_id = $1)
+         AND is_active = true`,
+        [request.model]
+    );
+
+    if (models.length === 0) {
+        throw new Error(`No providers found for model: ${request.model}`);
+    }
+
+    // Stage 2: Capability filtering
+    const totalTokens = estimateTotalTokens(request);
+    const hasTools = request.tools && request.tools.length > 0;
+    const hasImages = checkForImages(request.messages);
+
+    const compatibleModels = models.filter(model => {
+        if (model.context_window < totalTokens) return false;
+        if (hasTools && !model.support_tool_calling) return false;
+        if (hasImages && !model.support_vision) return false;
+        return true;
+    });
+
+    // Stage 3: Performance metrics collection (batch)
+    const providers = compatibleModels.map(m => m.provider);
+    const metricsData = await database.query(
+        `SELECT provider,
+                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY throughput_tokens_s)
+                    AS throughput_median,
+                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY time_to_first_chunk)
+                    AS latency_median
+         FROM metrics m
+         JOIN requests r ON m.request_id = r.request_id
+         WHERE r.model = $1 AND r.provider = ANY($2)
+         AND m.throughput_tokens_s IS NOT NULL
+         AND r.created_at > NOW() - INTERVAL '24 hours'
+         GROUP BY provider`,
+        [request.model, providers]
+    );
+
+    // Stage 4: Caching history check (batch)
+    const cachingData = await database.query(
+        `SELECT DISTINCT provider
+         FROM requests
+         WHERE user_id = $1 AND model = $2
+         AND provider = ANY($3)
+         AND cached_tokens > 0
+         ORDER BY created_at DESC
+         LIMIT 15`,
+        [userId, request.model, providers]
+    );
+
+    const hasCaching = new Set(cachingData.map(row => row.provider));
+
+    // Stage 5: Vectorial scoring
+    const scoredProviders = compatibleModels.map(model => {
+        const metrics = metricsData.find(m => m.provider === model.provider);
+        return {
+            ...model,
+            throughput: metrics?.throughput_median || 50,
+            latency: metrics?.latency_median || 1.5,
+            hasCaching: hasCaching.has(model.provider),
+            score: 0
+        };
+    });
+
+    // Normalize metrics
+    const prices = scoredProviders.map(p =>
+        p.price_per_input_token + p.price_per_output_token
+    );
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+
+    const throughputs = scoredProviders.map(p => p.throughput);
+    const minThroughput = Math.min(...throughputs);
+    const maxThroughput = Math.max(...throughputs);
+
+    const latencies = scoredProviders.map(p => p.latency);
+    const minLatency = Math.min(...latencies);
+    const maxLatency = Math.max(...latencies);
+
+    // Calculate optimal point based on ratio_sp
+    const ratioNormalized = userPreferences.ratio_sp / 100;
+    const optimalPrice = 1 - ratioNormalized;
+    const optimalThroughput = ratioNormalized;
+    const optimalLatency = ratioNormalized;
+
+    // Score each provider using Euclidean distance
+    scoredProviders.forEach(provider => {
+        const price = provider.price_per_input_token + provider.price_per_output_token;
+        const normalizedPrice = (price - minPrice) / (maxPrice - minPrice);
+        const normalizedThroughput =
+            (provider.throughput - minThroughput) / (maxThroughput - minThroughput);
+        const normalizedLatency =
+            1 - (provider.latency - minLatency) / (maxLatency - minLatency);
+
+        const distance = Math.sqrt(
+            Math.pow(normalizedPrice - optimalPrice, 2) +
+            Math.pow(normalizedThroughput - optimalThroughput, 2) +
+            Math.pow(normalizedLatency - optimalLatency, 2)
+        );
+
+        provider.score = distance;
+
+        // Apply caching boost
+        if (provider.hasCaching) {
+            provider.score *= 0.5;
+        }
+    });
+
+    // Sort by score (ascending: lower = better)
+    return scoredProviders.sort((a, b) => a.score - b.score);
+}
+\end{minted}
+\caption{Complete provider filtering implementation}
+\end{listing}
+
+\subsection*{B.2 Streaming Fallback Implementation}
+
+\begin{listing}[H]
+\begin{minted}{typescript}
+async function* executeStreamingWithFallback(
+    request: StandardRequest,
+    providerCombinations: ProviderCombination[],
+    requestId: string
+): AsyncGenerator<StreamingChunk> {
+
+    for (let i = 0; i < providerCombinations.length; i++) {
+        const combination = providerCombinations[i];
+        const adapter = createAdapter(combination.adapter, {
+            apiKey: getApiKey(combination.provider),
+            baseURL: combination.base_url
+        });
+
+        try {
+            console.log(`[${requestId}] Attempting provider: ${combination.provider}`);
+
+            const startTime = Date.now();
+            const generator = await adapter.makeStreamingRequest(request);
+
+            let firstTokenTime: number | null = null;
+            let tokenCount = 0;
+
+            for await (const chunk of generator) {
+                if (!firstTokenTime && chunk.delta?.content) {
+                    firstTokenTime = Date.now();
+                    console.log(`[${requestId}] TTFT: ${firstTokenTime - startTime}ms`);
+                }
+
+                if (chunk.delta?.content) {
+                    tokenCount += estimateTokens(chunk.delta.content);
+                }
+
+                yield chunk;
+            }
+
+            const endTime = Date.now();
+            const totalDuration = endTime - startTime;
+            const throughput = tokenCount / ((endTime - firstTokenTime!) / 1000);
+
+            // Log metrics asynchronously
+            logMetrics(requestId, {
+                latency: firstTokenTime! - startTime,
+                throughput,
+                total_duration: totalDuration
+            });
+
+            return; // Success, exit fallback loop
+
+        } catch (error) {
+            console.error(`[${requestId}] Provider ${combination.provider} failed:`,
+                error.message);
+
+            // Classify error
+            if (adapter.isAPIError(error)) {
+                throw error; // API error, fail immediately
+            }
+
+            // Technical error: log and try next provider
+            await logError(requestId, combination.provider, error);
+            await notifyError(error, combination);
+
+            if (i === providerCombinations.length - 1) {
+                throw new Error(`All providers failed. Last error: ${error.message}`);
+            }
+
+            continue; // Try next provider
+        }
+    }
+
+    throw new Error('All streaming providers failed');
+}
+\end{minted}
+\caption{Streaming fallback implementation}
+\end{listing}
+
+\newpage
+\section*{Appendix C: Provider and Model Reference Tables}
+\addcontentsline{toc}{section}{Appendix C: Provider and Model Reference Tables}
+
+\subsection*{C.1 Supported Providers (January 2025)}
+
+\begin{table}[H]
+\centering
+\caption{Complete list of supported providers}
+\begin{tabular}{|l|l|l|p{5cm}|}
+\hline
+\textbf{Provider} & \textbf{Type} & \textbf{Adapter} & \textbf{Notes} \\
+\hline
+OpenAI & Proprietary & openai & Native GPT models \\
+Anthropic & Proprietary & anthropic & Claude models \\
+Google AI Studio & Proprietary & openai & Gemini models \\
+Azure OpenAI & Proprietary & azure-openai & Enterprise GPT hosting \\
+AWS Bedrock & Proprietary & bedrock & Multi-model platform \\
+Google Vertex AI & Proprietary & vertex & Enterprise AI platform \\
+Together AI & Open-source & openai & 20+ open models \\
+Fireworks AI & Open-source & openai & Optimized inference \\
+Replicate & Open-source & openai & Pay-per-use \\
+Groq & Open-source & openai & Custom LPU hardware \\
+Cerebras & Open-source & openai & Wafer-scale engine \\
+Deepinfra & Open-source & openai & Budget-friendly \\
+SambaNova & Open-source & openai & RDU architecture \\
+Perplexity & Hybrid & openai & Search-augmented \\
+Cohere & Proprietary & openai & Command models \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection*{C.2 Benchmark Model Pricing (January 2025)}
+
+\begin{table}[H]
+\centering
+\caption{Pricing comparison for popular models}
+\begin{tabular}{|l|l|r|r|}
+\hline
+\textbf{Model} & \textbf{Provider} & \textbf{Input (\$/M)} & \textbf{Output (\$/M)} \\
+\hline
+GPT-4o & OpenAI & 2.50 & 10.00 \\
+GPT-4o mini & OpenAI & 0.15 & 0.60 \\
+Claude 3.5 Sonnet & Anthropic & 3.00 & 15.00 \\
+Claude 3.5 Haiku & Anthropic & 0.25 & 1.25 \\
+Gemini 2.0 Flash & Google & 0.10 & 0.30 \\
+DeepSeek-V3 & Deepinfra & 0.27 & 1.10 \\
+Llama 3.1 70B & Deepinfra & 0.18 & 0.18 \\
+Llama 3.1 70B & Replicate & 2.50 & 2.50 \\
+Mistral 7B & Together AI & 0.12 & 0.12 \\
+Codestral & Deepinfra & 0.20 & 0.20 \\
+\hline
+\end{tabular}
+\end{table}
+
+\newpage
+\section*{Appendix D: Deployment Architecture}
+\addcontentsline{toc}{section}{Appendix D: Deployment Architecture}
+
+\subsection*{D.1 Production Infrastructure Stack}
+
+\begin{table}[H]
+\centering
+\caption{Makehub production infrastructure}
+\begin{tabular}{|l|l|p{7cm}|}
+\hline
+\textbf{Component} & \textbf{Technology} & \textbf{Configuration} \\
+\hline
+API Gateway & Node.js (v20) & TypeScript, Express.js, async streaming \\
+Database & PostgreSQL 15 & Supabase-hosted, connection pooling \\
+Caching & Redis 7 & In-memory cache for routing decisions \\
+Hosting & Railway/Vercel & Auto-scaling, multi-region \\
+Monitoring & Datadog & Logs, metrics, traces \\
+Alerting & ntfy.sh & Real-time error notifications \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection*{D.2 Environment Variables}
+
+\begin{listing}[H]
+\begin{minted}{bash}
+# Database
+DATABASE_URL=postgresql://user:pass@host:5432/makehub
+REDIS_URL=redis://localhost:6379
+
+# Provider API Keys (20+ providers)
+API_KEY_OPENAI=sk-...
+API_KEY_ANTHROPIC=sk-ant-...
+API_KEY_TOGETHER=...
+API_KEY_FIREWORKS=...
+API_KEY_GROQ=...
+# (... 15+ more provider keys)
+
+# Authentication
+JWT_SECRET=...
+API_KEY_SALT=...
+
+# Monitoring
+NTFY_URL=https://ntfy.sh/makehub-alerts
+DATADOG_API_KEY=...
+
+# Feature Flags
+ENABLE_COMPRESSION=true
+ENABLE_MODEL_ROUTING=true
+ENABLE_PROMPT_CACHING=true
+\end{minted}
+\caption{Required environment variables}
+\end{listing}
+
+\subsection*{D.3 Deployment Sequence Diagram}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=2cm]
+\node (client) [rectangle, draw, minimum width=2cm] {Client};
+\node (gateway) [rectangle, draw, minimum width=2cm, below=of client] {API Gateway};
+\node (db) [rectangle, draw, minimum width=2cm, below=of gateway] {PostgreSQL};
+\node (redis) [rectangle, draw, minimum width=2cm, right=of db] {Redis};
+\node (provider) [rectangle, draw, minimum width=2cm, below=of db] {Provider};
+
+\draw[->] (client) -- (gateway) node[midway, right] {HTTP POST};
+\draw[->] (gateway) -- (db) node[midway, right] {Query models};
+\draw[->] (gateway) -- (redis) node[midway, above] {Check cache};
+\draw[->] (gateway) -- (provider) node[midway, right] {Forward request};
+\draw[->] (provider) -- (gateway) node[midway, left] {SSE stream};
+\draw[->] (gateway) -- (client) node[midway, left] {Proxy stream};
+\end{tikzpicture}
+\caption{Request flow deployment diagram}
+\end{figure}
 
 \newpage
 
